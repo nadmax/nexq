@@ -1,3 +1,5 @@
+![CI](https://github.com/nadmax/nexq/actions/workflows/ci.yml/badge.svg)
+
 # Nexq
 
 A lightweight, high-performance distributed task queue system built in Go with Pogocache. Schedule, execute, and monitor background jobs across multiple worker nodes with blazing-fast speed and minimal resource usage.
@@ -194,4 +196,3 @@ Nexq uses Pogocache instead of traditional caching solutions because:
 - **Protocol Compatible**: Supports Redis wire protocol, making migration seamless
 
 ---
-

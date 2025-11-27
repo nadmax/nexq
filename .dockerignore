@@ -1,3 +1,4 @@
 README
 .git*
 LICENSE
+*_test.go

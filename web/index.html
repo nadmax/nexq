@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexq Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { margin-bottom: 30px; color: #333; }
+        .create-task {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        .tasks {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .task {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: grid;
+            grid-template-columns: 1fr 1fr 100px 100px;
+            gap: 15px;
+            align-items: center;
+        }
+        .task:last-child { border-bottom: none; }
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .status.pending { background: #ffc107; color: #000; }
+        .status.running { background: #17a2b8; color: white; }
+        .status.completed { background: #28a745; color: white; }
+        .status.failed { background: #dc3545; color: white; }
+        .stats {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0 0 0;
+            color: #007bff;
+        }
+        .stat-card h3 {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Nexq Dashboard</h1>
+        
+        <div class="create-task">
+            <h2>Create New Task</h2>
+            <form id="taskForm">
+                <div class="form-group">
+                    <label>Task Type</label>
+                    <select id="taskType">
+                        <option value="send_email">Send Email</option>
+                        <option value="process_image">Process Image</option>
+                        <option value="generate_report">Generate Report</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Payload (JSON)</label>
+                    <textarea id="payload" rows="4">{"to": "user@example.com", "subject": "Hello"}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="priority">
+                        <option value="0">Low</option>
+                        <option value="5" selected>Normal</option>
+                        <option value="10">High</option>
+                    </select>
+                </div>
+                <button type="submit">Create Task</button>
+            </form>
+        </div>
+
+        <div class="stats">
+            <h2>📊 Statistics</h2>
+            <div id="stats">Loading...</div>
+        </div>
+
+        <div class="tasks">
+            <h2>Tasks</h2>
+            <div id="taskList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const payload = JSON.parse(document.getElementById('payload').value);
+            const data = {
+                type: document.getElementById('taskType').value,
+                payload: payload,
+                priority: parseInt(document.getElementById('priority').value)
+            };
+
+            try {
+                await fetch(`${API_URL}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                loadTasks();
+            } catch (err) {
+                alert('Error creating task: ' + err.message);
+            }
+        });
+
+        async function loadTasks() {
+            try {
+                const response = await fetch(`${API_URL}/tasks`);
+                const tasks = await response.json();
+                
+                const taskList = document.getElementById('taskList');
+                taskList.innerHTML = tasks.map(task => `
+                    <div class="task">
+                        <div>
+                            <strong>${task.type}</strong><br>
+                            <small>${task.id}</small>
+                        </div>
+                        <div>
+                            <small>Created: ${new Date(task.created_at).toLocaleString()}</small>
+                        </div>
+                        <div class="status ${task.status}">${task.status}</div>
+                        <div>
+                            ${task.retries}/${task.max_retries} retries
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading tasks:', err);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                const stats = await response.json();
+        
+                document.getElementById('stats').innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                        <div class="stat-card">
+                            <h3>Total</h3>
+                            <p class="stat-number">${stats.total_tasks}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Pending</h3>
+                            <p class="stat-number">${stats.pending_tasks}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Running</h3>
+                            <p class="stat-number">${stats.running_tasks}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Completed</h3>
+                            <p class="stat-number">${stats.completed_tasks}</p>
+                        </div>
+                    </div>
+                    <p><strong>Average Wait Time:</strong> ${stats.average_wait_time}</p>
+                `;
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        }
+
+        loadStats();
+        setInterval(loadStats, 5000);
+        loadTasks();
+        setInterval(loadTasks, 2000);
+    </script>
+</body>
+</html>
