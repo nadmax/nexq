@@ -1,0 +1,55 @@
+services:
+  pogocache:
+    build:
+      context: .
+      dockerfile: Dockerfile.pogocache
+    container_name: nexq-pogocache
+    ports:
+      - "9401:9401"
+    command: ["-h", "0.0.0.0", "-p", "9401"]
+    networks:
+      - nexq-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'PING' | nc -w 1 localhost 9401 | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: nexq-server
+    ports:
+      - "8080:8080"
+    environment:
+      - POGOCACHE_ADDR=pogocache:9401
+    depends_on:
+      pogocache:
+        condition: service_healthy
+    networks:
+      - nexq-network
+    restart: unless-stopped
+
+  worker1:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: nexq-worker-1
+    environment:
+      - POGOCACHE_ADDR=pogocache:9401
+      - WORKER_ID=worker-1
+    depends_on:
+      pogocache:
+        condition: service_healthy
+    networks:
+      - nexq-network
+    restart: unless-stopped
+
+networks:
+  nexq-network:
+    driver: bridge
+
+volumes:
+  pogocache-data:
