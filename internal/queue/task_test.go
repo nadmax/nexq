@@ -13,15 +13,15 @@ func TestNewTask(t *testing.T) {
 		"subject": "Test",
 	}
 
-	task := NewTask("send_email", payload)
+	task := NewTask("send_email", payload, PriorityMedium)
 
 	assert.NotEmpty(t, task.ID)
 	assert.Equal(t, "send_email", task.Type)
 	assert.Equal(t, payload, task.Payload)
-	assert.Equal(t, PriorityNormal, task.Priority)
+	assert.Equal(t, PriorityMedium, task.Priority)
 	assert.Equal(t, StatusPending, task.Status)
 	assert.Equal(t, 3, task.MaxRetries)
-	assert.Equal(t, 0, task.Retries)
+	assert.Equal(t, 0, task.RetryCount)
 	assert.False(t, task.CreatedAt.IsZero())
 	assert.False(t, task.ScheduledAt.IsZero())
 	assert.Nil(t, task.StartedAt)
@@ -29,7 +29,7 @@ func TestNewTask(t *testing.T) {
 }
 
 func TestTaskToJSON(t *testing.T) {
-	task := NewTask("test_task", map[string]any{"key": "value"})
+	task := NewTask("test_task", map[string]any{"key": "value"}, PriorityMedium)
 
 	jsonStr, err := task.ToJSON()
 
@@ -40,7 +40,7 @@ func TestTaskToJSON(t *testing.T) {
 }
 
 func TestTaskFromJSON(t *testing.T) {
-	original := NewTask("test_task", map[string]any{"key": "value"})
+	original := NewTask("test_task", map[string]any{"key": "value"}, PriorityMedium)
 	jsonStr, _ := original.ToJSON()
 
 	restored, err := TaskFromJSON(jsonStr)
@@ -67,8 +67,8 @@ func TestTaskStatuses(t *testing.T) {
 
 func TestTaskPriorities(t *testing.T) {
 	assert.Equal(t, TaskPriority(0), PriorityLow)
-	assert.Equal(t, TaskPriority(5), PriorityNormal)
-	assert.Equal(t, TaskPriority(10), PriorityHigh)
+	assert.Equal(t, TaskPriority(1), PriorityMedium)
+	assert.Equal(t, TaskPriority(2), PriorityHigh)
 }
 
 func TestTaskJSONRoundTrip(t *testing.T) {
@@ -80,7 +80,7 @@ func TestTaskJSONRoundTrip(t *testing.T) {
 		Priority:    PriorityHigh,
 		Status:      StatusRunning,
 		MaxRetries:  5,
-		Retries:     2,
+		RetryCount:  2,
 		CreatedAt:   now,
 		ScheduledAt: now,
 		StartedAt:   &now,
@@ -98,6 +98,6 @@ func TestTaskJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, task.Priority, restored.Priority)
 	assert.Equal(t, task.Status, restored.Status)
 	assert.Equal(t, task.MaxRetries, restored.MaxRetries)
-	assert.Equal(t, task.Retries, restored.Retries)
+	assert.Equal(t, task.RetryCount, restored.RetryCount)
 	assert.Equal(t, task.Error, restored.Error)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nadmax/nexq/internal/dashboard"
+	"github.com/nadmax/nexq/internal/httputil"
 	"github.com/nadmax/nexq/internal/queue"
 )
 
@@ -42,6 +43,10 @@ func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/dashboard/stats", dash.GetStats)
 	a.mux.HandleFunc("/api/dashboard/history", dash.GetRecentTasks)
 
+	a.mux.HandleFunc("/api/dlq/tasks", a.handleDLQTasks)
+	a.mux.HandleFunc("/api/dlq/takss/", a.handleDLQTaskByID)
+	a.mux.HandleFunc("/api/dlq/stats", a.handleDLQStats)
+
 	fs := http.FileServer(http.Dir("./web"))
 	a.mux.Handle("/", fs)
 }
@@ -57,14 +62,14 @@ func (a *API) handleTasks(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		a.listTasks(w, r)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
 func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		httputil.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 
@@ -76,32 +81,34 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 
 	var req CreateTaskRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		httputil.WriteJSONError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	if req.Type == "" {
-		http.Error(w, "Task type is required", http.StatusBadRequest)
+		httputil.WriteJSONError(w, "Task type is required", http.StatusBadRequest)
 		return
 	}
 
-	task := queue.NewTask(req.Type, req.Payload)
+	priority := queue.PriorityMedium
 	if req.Priority != nil {
-		task.Priority = *req.Priority
+		priority = *req.Priority
 	}
+
+	task := queue.NewTask(req.Type, req.Payload, priority)
 	if req.ScheduleIn != nil {
 		task.ScheduledAt = time.Now().Add(time.Duration(*req.ScheduleIn) * time.Second)
 	}
 
 	if err := a.queue.Enqueue(task); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(task); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
@@ -109,38 +116,143 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 func (a *API) listTasks(w http.ResponseWriter, _ *http.Request) {
 	tasks, err := a.queue.GetAllTasks()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(tasks); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (a *API) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	taskID := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	if taskID == "" {
-		http.Error(w, "Task ID is required", http.StatusBadRequest)
+		httputil.WriteJSONError(w, "Task ID is required", http.StatusBadRequest)
 		return
 	}
 
 	task, err := a.queue.GetTask(taskID)
 	if err != nil {
-		http.Error(w, "Task not found", http.StatusNotFound)
+		httputil.WriteJSONError(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(task); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleDLQTasks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tasks, err := a.queue.GetDeadLetterTasks()
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleDLQTaskByID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/dlq/tasks/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) == 0 || parts[0] == "" {
+		httputil.WriteJSONError(w, "Task ID is required", http.StatusBadRequest)
+		return
+	}
+
+	taskID := parts[0]
+
+	switch r.Method {
+	case http.MethodGet:
+		a.getDLQTask(w, taskID)
+	case http.MethodDelete:
+		a.purgeDLQTask(w, taskID)
+	case http.MethodPost:
+		if len(parts) == 2 && parts[1] == "retry" {
+			a.retryDLQTask(w, taskID)
+		} else {
+			httputil.WriteJSONError(w, "Invalid endpoint", http.StatusNotFound)
+		}
+	default:
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *API) getDLQTask(w http.ResponseWriter, taskID string) {
+	task, err := a.queue.GetDeadLetterTask(taskID)
+	if err != nil {
+		httputil.WriteJSONError(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) retryDLQTask(w http.ResponseWriter, taskID string) {
+	if err := a.queue.RetryDeadLetterTask(taskID); err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]string{
+		"message": "Task moved back to queue for retry",
+		"task_id": taskID,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) purgeDLQTask(w http.ResponseWriter, taskID string) {
+	if err := a.queue.PurgeDeadLetterTask(taskID); err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) handleDLQStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stats, err := a.queue.GetDeadLetterStats()
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
