@@ -11,10 +11,11 @@ import (
 type TaskHandler func(*queue.Task) error
 
 type Worker struct {
-	id       string
-	queue    *queue.Queue
-	handlers map[string]TaskHandler
-	stop     chan bool
+	id           string
+	queue        *queue.Queue
+	handlers     map[string]TaskHandler
+	stop         chan bool
+	pollInterval time.Duration
 }
 
 func NewWorker(id string, q *queue.Queue) *Worker {
@@ -30,6 +31,10 @@ func (w *Worker) RegisterHandler(taskType string, handler TaskHandler) {
 	w.handlers[taskType] = handler
 }
 
+func (w *Worker) SetPollInterval(d time.Duration) {
+	w.pollInterval = d
+}
+
 func (w *Worker) Start() {
 	log.Printf("Worker %s started", w.id)
 
@@ -41,7 +46,7 @@ func (w *Worker) Start() {
 		default:
 			task, err := w.queue.Dequeue()
 			if err != nil || task == nil {
-				time.Sleep(1 * time.Second)
+				time.Sleep(w.pollInterval)
 				continue
 			}
 
@@ -75,14 +80,14 @@ func (w *Worker) processTask(task *queue.Task) {
 	task.CompletedAt = &completedAt
 
 	if err != nil {
-		task.Retries++
-		if task.Retries < task.MaxRetries {
+		task.RetryCount++
+		if task.RetryCount < task.MaxRetries {
 			task.Status = queue.StatusPending
-			task.ScheduledAt = time.Now().Add(time.Duration(task.Retries) * 10 * time.Second)
+			task.ScheduledAt = time.Now().Add(time.Duration(task.RetryCount) * 10 * time.Second)
 			if err := w.queue.Enqueue(task); err != nil {
 				log.Printf("Failed to re-enqueue task: %v", err)
 			}
-			log.Printf("Task %s failed, will retry (%d/%d)", task.ID, task.Retries, task.MaxRetries)
+			log.Printf("Task %s failed, will retry (%d/%d)", task.ID, task.RetryCount, task.MaxRetries)
 		} else {
 			task.Status = queue.StatusFailed
 			task.Error = err.Error()

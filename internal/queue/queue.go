@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -30,81 +31,246 @@ func NewQueue(redisAddr string) (*Queue, error) {
 }
 
 func (q *Queue) Enqueue(task *Task) error {
-	taskJSON, err := task.ToJSON()
+	data, err := task.ToJSON()
 	if err != nil {
 		return err
 	}
 
-	if err := q.client.HSet(q.ctx, "tasks", task.ID, taskJSON).Err(); err != nil {
+	seq, err := q.client.Incr(q.ctx, "queue:tail").Result()
+	if err != nil {
 		return err
 	}
 
-	invertedPriority := float64(PriorityHigh - task.Priority)
-	score := float64(task.ScheduledAt.Unix())*1000 + invertedPriority
-	return q.client.ZAdd(q.ctx, "task_queue", redis.Z{
-		Score:  score,
-		Member: task.ID,
-	}).Err()
+	if err := q.client.Set(
+		q.ctx,
+		fmt.Sprintf("queue:item:%d", seq),
+		task.ID,
+		0,
+	).Err(); err != nil {
+		return err
+	}
+
+	return q.client.Set(
+		q.ctx,
+		"task:"+task.ID,
+		data,
+		0,
+	).Err()
 }
 
 func (q *Queue) Dequeue() (*Task, error) {
-	now := time.Now().Unix()
-	maxScore := float64(now)*1000 + float64(PriorityHigh-PriorityLow)
+	// Get current head and tail to check if queue has items
+	headStr, _ := q.client.Get(q.ctx, "queue:head").Result()
+	tailStr, _ := q.client.Get(q.ctx, "queue:tail").Result()
 
-	results, err := q.client.ZRangeByScore(q.ctx, "task_queue", &redis.ZRangeBy{
-		Min:   "-inf",
-		Max:   fmt.Sprintf("%f", maxScore),
-		Count: 1,
-	}).Result()
+	head := int64(0)
+	tail := int64(0)
 
-	if err != nil || len(results) == 0 {
-		return nil, err
+	if headStr != "" {
+		head, _ = strconv.ParseInt(headStr, 10, 64)
+	}
+	if tailStr != "" {
+		tail, _ = strconv.ParseInt(tailStr, 10, 64)
 	}
 
-	taskID := results[0]
+	// No items in queue
+	if head >= tail {
+		return nil, nil
+	}
 
-	q.client.ZRem(q.ctx, "task_queue", taskID)
-
-	taskJSON, err := q.client.HGet(q.ctx, "tasks", taskID).Result()
+	// Increment head to claim next item
+	newHead, err := q.client.Incr(q.ctx, "queue:head").Result()
 	if err != nil {
 		return nil, err
 	}
 
-	return TaskFromJSON(taskJSON)
+	// Read the item at the position we just claimed
+	itemKey := fmt.Sprintf("queue:item:%d", newHead)
+	taskID, err := q.client.Get(q.ctx, itemKey).Result()
+	if err != nil {
+		return nil, nil // Item doesn't exist
+	}
+
+	data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	q.client.Del(q.ctx, itemKey)
+	q.client.Del(q.ctx, "task:"+taskID)
+
+	return TaskFromJSON(data)
 }
 
 func (q *Queue) UpdateTask(task *Task) error {
-	taskJSON, err := task.ToJSON()
+	data, err := task.ToJSON()
 	if err != nil {
 		return err
 	}
-	return q.client.HSet(q.ctx, "tasks", task.ID, taskJSON).Err()
+
+	return q.client.Set(
+		q.ctx,
+		"task:"+task.ID,
+		data,
+		0,
+	).Err()
 }
 
 func (q *Queue) GetTask(taskID string) (*Task, error) {
-	taskJSON, err := q.client.HGet(q.ctx, "tasks", taskID).Result()
+	data, err := q.client.Get(
+		q.ctx,
+		"task:"+taskID,
+	).Result()
 	if err != nil {
 		return nil, err
 	}
-	return TaskFromJSON(taskJSON)
+
+	return TaskFromJSON(data)
 }
 
 func (q *Queue) GetAllTasks() ([]*Task, error) {
-	taskMap, err := q.client.HGetAll(q.ctx, "tasks").Result()
+	var tasks []*Task
+
+	iter := q.client.Scan(q.ctx, 0, "task:*", 100).Iterator()
+	for iter.Next(q.ctx) {
+		key := iter.Val()
+
+		data, err := q.client.Get(q.ctx, key).Result()
+		if err != nil {
+			continue
+		}
+
+		task, err := TaskFromJSON(data)
+		if err != nil {
+			continue
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
+}
+
+func (q *Queue) MoveToDeadLetter(task *Task, reason string) error {
+	task.FailureReason = reason
+	task.MoveToDLQAt = time.Now()
+
+	data, err := task.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	seq, err := q.client.Incr(q.ctx, "dlq:tail").Result()
+	if err != nil {
+		return err
+	}
+
+	if err := q.client.Set(
+		q.ctx,
+		fmt.Sprintf("dlq:item:%d", seq),
+		task.ID,
+		0,
+	).Err(); err != nil {
+		return err
+	}
+
+	return q.client.Set(
+		q.ctx,
+		"dlq:task:"+task.ID,
+		data,
+		0,
+	).Err()
+}
+
+func (q *Queue) GetDeadLetterTasks() ([]*Task, error) {
+	var tasks []*Task
+
+	iter := q.client.Scan(q.ctx, 0, "dlq:task:*", 100).Iterator()
+	for iter.Next(q.ctx) {
+		key := iter.Val()
+
+		data, err := q.client.Get(q.ctx, key).Result()
+		if err != nil {
+			continue
+		}
+
+		task, err := TaskFromJSON(data)
+		if err != nil {
+			continue
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
+}
+
+func (q *Queue) GetDeadLetterTask(taskID string) (*Task, error) {
+	data, err := q.client.Get(
+		q.ctx,
+		"dlq:task:"+taskID,
+	).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	tasks := make([]*Task, 0, len(taskMap))
-	for _, taskJSON := range taskMap {
-		task, err := TaskFromJSON(taskJSON)
-		if err != nil {
-			continue
-		}
-		tasks = append(tasks, task)
+	return TaskFromJSON(data)
+}
+
+func (q *Queue) RetryDeadLetterTask(taskID string) error {
+	data, err := q.client.Get(q.ctx, "dlq:task:"+taskID).Result()
+	if err != nil {
+		return err
 	}
 
-	return tasks, nil
+	task, err := TaskFromJSON(data)
+	if err != nil {
+		return err
+	}
+
+	task.RetryCount = 0
+	task.FailureReason = ""
+	task.MoveToDLQAt = time.Time{}
+	task.ScheduledAt = time.Now()
+
+	if err := q.Enqueue(task); err != nil {
+		return err
+	}
+
+	q.client.Del(q.ctx, "dlq:task:"+taskID)
+	return nil
+}
+
+func (q *Queue) PurgeDeadLetterTask(taskID string) error {
+	return q.client.Del(
+		q.ctx,
+		"dlq:task:"+taskID,
+	).Err()
+}
+
+func (q *Queue) GetDeadLetterStats() (map[string]any, error) {
+	var count int
+
+	iter := q.client.Scan(q.ctx, 0, "dlq:task:*", 100).Iterator()
+	for iter.Next(q.ctx) {
+		count++
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"total_tasks": count,
+	}, nil
 }
 
 func (q *Queue) Close() error {

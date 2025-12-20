@@ -49,6 +49,7 @@ func TestCreateTask(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "send_email", task.Type)
 	assert.NotEmpty(t, task.ID)
+	assert.Equal(t, queue.PriorityMedium, task.Priority)
 }
 
 func TestCreateTask_WithPriority(t *testing.T) {
@@ -143,8 +144,8 @@ func TestListTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := queue.NewTask("task1", nil)
-	task2 := queue.NewTask("task2", nil)
+	task1 := queue.NewTask("task1", nil, queue.PriorityMedium)
+	task2 := queue.NewTask("task2", nil, queue.PriorityHigh)
 	err := q.Enqueue(task1)
 	assert.NoError(t, err)
 	err = q.Enqueue(task2)
@@ -186,7 +187,7 @@ func TestGetTaskByID(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task := queue.NewTask("test_task", map[string]any{"key": "value"})
+	task := queue.NewTask("test_task", map[string]any{"key": "value"}, queue.PriorityMedium)
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
 

@@ -10,45 +10,47 @@ import (
 type (
 	TaskStatus   string
 	TaskPriority int
-)
-
-type Task struct {
-	ID          string         `json:"id"`
-	Type        string         `json:"type"`
-	Payload     map[string]any `json:"payload"`
-	Priority    TaskPriority   `json:"priority"`
-	Status      TaskStatus     `json:"status"`
-	MaxRetries  int            `json:"max_retries"`
-	Retries     int            `json:"retries"`
-	CreatedAt   time.Time      `json:"created_at"`
-	ScheduledAt time.Time      `json:"scheduled_at"`
-	StartedAt   *time.Time     `json:"started_at,omitempty"`
-	CompletedAt *time.Time     `json:"completed_at,omitempty"`
-	Error       string         `json:"error,omitempty"`
-}
-
-const (
-	StatusPending   TaskStatus = "pending"
-	StatusRunning   TaskStatus = "running"
-	StatusCompleted TaskStatus = "completed"
-	StatusFailed    TaskStatus = "failed"
+	Task         struct {
+		ID            string         `json:"id"`
+		Type          string         `json:"type"`
+		Payload       map[string]any `json:"payload"`
+		Priority      TaskPriority   `json:"priority"`
+		Status        TaskStatus     `json:"status"`
+		RetryCount    int            `json:"retry_count"`
+		MaxRetries    int            `json:"max_retries"`
+		CreatedAt     time.Time      `json:"created_at"`
+		ScheduledAt   time.Time      `json:"scheduled_at"`
+		StartedAt     *time.Time     `json:"started_at,omitempty"`
+		CompletedAt   *time.Time     `json:"completed_at,omitempty"`
+		Error         string         `json:"error,omitempty"`
+		FailureReason string         `json:"failure_reason,omitempty"`
+		MoveToDLQAt   time.Time      `json:"moved_to_dlq_at,omitempty"`
+	}
 )
 
 const (
-	PriorityLow    TaskPriority = 0
-	PriorityNormal TaskPriority = 5
-	PriorityHigh   TaskPriority = 10
+	StatusPending    TaskStatus = "pending"
+	StatusRunning    TaskStatus = "running"
+	StatusCompleted  TaskStatus = "completed"
+	StatusFailed     TaskStatus = "failed"
+	StatusDeadLetter TaskStatus = "dead_letter"
 )
 
-func NewTask(taskType string, payload map[string]any) *Task {
+const (
+	PriorityLow TaskPriority = iota
+	PriorityMedium
+	PriorityHigh
+)
+
+func NewTask(taskType string, payload map[string]any, priority TaskPriority) *Task {
 	return &Task{
 		ID:          uuid.New().String(),
 		Type:        taskType,
 		Payload:     payload,
-		Priority:    PriorityNormal,
+		Priority:    priority,
 		Status:      StatusPending,
 		MaxRetries:  3,
-		Retries:     0,
+		RetryCount:  0,
 		CreatedAt:   time.Now(),
 		ScheduledAt: time.Now(),
 	}
@@ -56,11 +58,22 @@ func NewTask(taskType string, payload map[string]any) *Task {
 
 func (t *Task) ToJSON() (string, error) {
 	data, err := json.Marshal(t)
+	if err != nil {
+		return "", err
+	}
+
 	return string(data), err
+}
+
+func (t *Task) ShouldMoveToDeadLetter() bool {
+	return t.RetryCount >= t.MaxRetries && t.Status == StatusFailed
 }
 
 func TaskFromJSON(data string) (*Task, error) {
 	var task Task
-	err := json.Unmarshal([]byte(data), &task)
-	return &task, err
+	if err := json.Unmarshal([]byte(data), &task); err != nil {
+		return nil, err
+	}
+
+	return &task, nil
 }

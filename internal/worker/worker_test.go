@@ -59,7 +59,7 @@ func TestProcessTask_Success(t *testing.T) {
 		return nil
 	})
 
-	task := queue.NewTask("test_task", nil)
+	task := queue.NewTask("test_task", nil, queue.PriorityMedium)
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestProcessTask_Failure(t *testing.T) {
 		return errors.New("task failed")
 	})
 
-	task := queue.NewTask("test_task", nil)
+	task := queue.NewTask("test_task", nil, queue.PriorityMedium)
 	task.MaxRetries = 1
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
@@ -89,7 +89,7 @@ func TestProcessTask_Failure(t *testing.T) {
 	w.processTask(task)
 
 	updated, _ := q.GetTask(task.ID)
-	assert.Equal(t, 1, updated.Retries)
+	assert.Equal(t, 1, updated.RetryCount)
 }
 
 func TestProcessTask_MaxRetriesExceeded(t *testing.T) {
@@ -101,9 +101,9 @@ func TestProcessTask_MaxRetriesExceeded(t *testing.T) {
 		return errors.New("task failed")
 	})
 
-	task := queue.NewTask("test_task", nil)
+	task := queue.NewTask("test_task", nil, queue.PriorityMedium)
 	task.MaxRetries = 2
-	task.Retries = 2
+	task.RetryCount = 2
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestProcessTask_NoHandler(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task := queue.NewTask("unknown_task", nil)
+	task := queue.NewTask("unknown_task", nil, queue.PriorityMedium)
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
 
@@ -135,6 +135,8 @@ func TestWorkerStartStop(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
+	w.SetPollInterval(10 * time.Millisecond)
+
 	processed := make(chan bool, 1)
 	w.RegisterHandler("test_task", func(task *queue.Task) error {
 		processed <- true
@@ -143,9 +145,9 @@ func TestWorkerStartStop(t *testing.T) {
 
 	go w.Start()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
-	task := queue.NewTask("test_task", nil)
+	task := queue.NewTask("test_task", nil, queue.PriorityMedium)
 	err := q.Enqueue(task)
 	assert.NoError(t, err)
 
@@ -155,9 +157,8 @@ func TestWorkerStartStop(t *testing.T) {
 		t.Fatal("Task was not processed")
 	}
 
-	go w.Stop()
-
-	time.Sleep(100 * time.Millisecond)
+	w.Stop()
+	time.Sleep(50 * time.Millisecond)
 }
 
 func TestWorkerProcessMultipleTasks(t *testing.T) {
@@ -172,7 +173,7 @@ func TestWorkerProcessMultipleTasks(t *testing.T) {
 	})
 
 	for range 5 {
-		task := queue.NewTask("test_task", nil)
+		task := queue.NewTask("test_task", nil, queue.PriorityMedium)
 		_ = q.Enqueue(task)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/nadmax/nexq/internal/httputil"
 	"github.com/nadmax/nexq/internal/queue"
 )
 
@@ -18,6 +19,7 @@ type Stats struct {
 	RunningTasks    int            `json:"running_tasks"`
 	CompletedTasks  int            `json:"completed_tasks"`
 	FailedTasks     int            `json:"failed_tasks"`
+	DeadLetterTasks int            `json:"dead_letter_tasks"`
 	TasksByType     map[string]int `json:"tasks_by_type"`
 	AverageWaitTime string         `json:"average_wait_time"`
 	LastUpdated     time.Time      `json:"last_updated"`
@@ -39,7 +41,7 @@ func NewDashboard(q *queue.Queue) *Dashboard {
 func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 	tasks, err := d.queue.GetAllTasks()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -62,6 +64,8 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 			stats.CompletedTasks++
 		case queue.StatusFailed:
 			stats.FailedTasks++
+		case queue.StatusDeadLetter:
+			stats.DeadLetterTasks++
 		}
 
 		stats.TasksByType[task.Type]++
@@ -82,7 +86,7 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(stats); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
@@ -90,7 +94,7 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 func (d *Dashboard) GetRecentTasks(w http.ResponseWriter, r *http.Request) {
 	tasks, err := d.queue.GetAllTasks()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -123,7 +127,7 @@ func (d *Dashboard) GetRecentTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(history); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
