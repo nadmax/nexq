@@ -2,7 +2,8 @@
 
 # Nexq
 
-A lightweight, high-performance distributed task queue system built in Go with Pogocache. Schedule, execute, and monitor background jobs across multiple worker nodes with blazing-fast speed and minimal resource usage.
+A lightweight, high-performance distributed task queue system built in Go with Pogocache.  
+Schedule, execute, and monitor background jobs across multiple worker nodes with blazing-fast speed and minimal resource usage.
 
 ## Features
 
@@ -16,7 +17,7 @@ A lightweight, high-performance distributed task queue system built in Go with P
 - **Pogocache-Backed**: Ultra-fast caching with lower latency and better CPU efficiency than Redis
 - **Zero Dependencies**: Minimal external dependencies, uses Go standard library where possible
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -157,10 +158,15 @@ Run Pogocache with custom options:
 | POST | `/api/tasks` | Create a new task |
 | GET | `/api/tasks` | List all tasks |
 | GET | `/api/tasks/:id` | Get task details |
+| GET | `/api/dashboard/stats` | Get tasks statistics (total, pending, running, completed and failed)|
+|GET | `/api/dashboard/history` | Get tasks history (from most recent to oldest) |
+| GET | `/api/dlq/tasks` | List all dead letter tasks |
+| GET | `/api/dlq/tasks/:id` | Get dead letter task details |
+| GET | `/api/dlq/stats` | Get dead letter queue statistics (total failed)|
 
 ## Future Enhancements
 
-- [ ] Dead letter queue for permanently failed tasks
+- [x] Dead letter queue for permanently failed tasks
 - [ ] Task dependencies and workflows
 - [ ] Cron-like recurring tasks
 - [ ] Worker health monitoring and metrics
@@ -169,7 +175,7 @@ Run Pogocache with custom options:
 - [ ] Task cancellation support
 - [ ] Persistent task history
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 

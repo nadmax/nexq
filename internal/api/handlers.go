@@ -1,3 +1,4 @@
+// Package api provides HTTP handlers for the job queue REST API endpoints.
 package api
 
 import (
@@ -44,7 +45,7 @@ func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/dashboard/history", dash.GetRecentTasks)
 
 	a.mux.HandleFunc("/api/dlq/tasks", a.handleDLQTasks)
-	a.mux.HandleFunc("/api/dlq/takss/", a.handleDLQTaskByID)
+	a.mux.HandleFunc("/api/dlq/tasks/", a.handleDLQTaskByID)
 	a.mux.HandleFunc("/api/dlq/stats", a.handleDLQStats)
 
 	fs := http.FileServer(http.Dir("./web"))

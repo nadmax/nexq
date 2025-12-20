@@ -1,3 +1,4 @@
+// Package httputil contains shared HTTP utilities for consistent response formatting across handlers.
 package httputil
 
 import (

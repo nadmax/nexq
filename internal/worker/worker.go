@@ -1,3 +1,4 @@
+// Package worker provides the background job processor that consumes and executes tasks from the queue.
 package worker
 
 import (
