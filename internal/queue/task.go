@@ -1,3 +1,4 @@
+// Package queue implements a Redis-backed distributed job queue with support for task scheduling and retries.
 package queue
 
 import (

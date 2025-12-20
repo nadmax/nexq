@@ -1,3 +1,4 @@
+// Package dashboard implements the web-based monitoring interface for queue metrics and job status.
 package dashboard
 
 import (
@@ -105,7 +106,6 @@ func (d *Dashboard) GetRecentTasks(w http.ResponseWriter, r *http.Request) {
 		if task.CompletedAt == nil {
 			continue
 		}
-
 		if task.CompletedAt.Before(cutoff) {
 			continue
 		}

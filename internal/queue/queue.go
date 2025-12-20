@@ -1,3 +1,4 @@
+// Package queue implements a Pogocache-backed distributed job queue with support for task scheduling and retries.
 package queue
 
 import (
@@ -59,36 +60,29 @@ func (q *Queue) Enqueue(task *Task) error {
 }
 
 func (q *Queue) Dequeue() (*Task, error) {
-	// Get current head and tail to check if queue has items
 	headStr, _ := q.client.Get(q.ctx, "queue:head").Result()
 	tailStr, _ := q.client.Get(q.ctx, "queue:tail").Result()
-
 	head := int64(0)
 	tail := int64(0)
-
 	if headStr != "" {
 		head, _ = strconv.ParseInt(headStr, 10, 64)
 	}
 	if tailStr != "" {
 		tail, _ = strconv.ParseInt(tailStr, 10, 64)
 	}
-
-	// No items in queue
 	if head >= tail {
 		return nil, nil
 	}
 
-	// Increment head to claim next item
 	newHead, err := q.client.Incr(q.ctx, "queue:head").Result()
 	if err != nil {
 		return nil, err
 	}
 
-	// Read the item at the position we just claimed
 	itemKey := fmt.Sprintf("queue:item:%d", newHead)
 	taskID, err := q.client.Get(q.ctx, itemKey).Result()
 	if err != nil {
-		return nil, nil // Item doesn't exist
+		return nil, nil
 	}
 
 	data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
