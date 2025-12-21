@@ -5,6 +5,15 @@
 A lightweight, high-performance distributed task queue system built in Go with Pogocache.  
 Schedule, execute, and monitor background jobs across multiple worker nodes with blazing-fast speed and minimal resource usage.
 
+## Why Pogocache?
+
+Nexq uses Pogocache instead of traditional caching solutions because:
+
+- **Faster**: Lower latency per request than Redis, Memcache, Valkey, and others
+- **More Efficient**: Uses fewer CPU cycles, reducing server costs and energy usage
+- **Better Scaling**: Optimized for both single-threaded and multi-threaded performance
+- **Protocol Compatible**: Supports Redis wire protocol, making migration seamless
+
 ## Features
 
 - **Distributed Processing**: Scale horizontally by adding more worker nodes
@@ -22,89 +31,16 @@ Schedule, execute, and monitor background jobs across multiple worker nodes with
 ### Prerequisites
 
 - Go 1.25.3 or higher
+- Docker (recommended)
 - Pogocache server running locally or remotely
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/nexq.git
-cd nexq
-
-# Install dependencies
-go mod download
-
-# Start Pogocache (using Docker)
-docker run -d -p 9401:9401 pogocache/pogocache
-
-# Or build Pogocache from source
-git clone https://github.com/pogocache/pogocache.git
-cd pogocache
-make
-./pogocache
-
-# Run the API server
-go run cmd/server/main.go
-
-# In another terminal, run a worker
-go run cmd/worker/main.go
-```
-
-### Usage
-
-Open your browser and navigate to `http://localhost:8080` to access the dashboard.
-
-**Create a task via API:**
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "send_email",
-    "payload": {
-      "to": "user@example.com",
-      "subject": "Hello from Nexq"
-    },
-    "priority": 5
-  }'
-```
-
-**Schedule a task for later:**
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "generate_report",
-    "payload": {"report_type": "monthly"},
-    "schedule_in": 3600
-  }'
-```
-
-Add your own task handlers in `cmd/worker/main.go`:
-
-```go
-w.RegisterHandler("my_custom_task", func(task *queue.Task) error {
-    // Your task logic here
-    return nil
-})
-```
+See [INSTALLATION.md](https://github.com/nadmax/nexq/blob/master/docs/INSTALLATION.md) to know how to use Nexq.
 
 ## Architecture
 
-```
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│   Client    │─────▶│  API Server │─────▶│  Pogocache  │
-└─────────────┘      └─────────────┘      └──────┬──────┘
-                                                  │
-                     ┌────────────────────────────┘
-                     │
-         ┌───────────┼───────────┬───────────┐
-         ▼           ▼           ▼           ▼
-    ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
-    │Worker 1 │ │Worker 2 │ │Worker 3 │ │Worker N │
-    └─────────┘ └─────────┘ └─────────┘ └─────────┘
-```
+See [ARCHITECTURE.md](https://github.com/nadmax/nexq/blob/master/docs/ARCHITECTURE.md) to learn about Nexq's architecture.
 
 ## Use Cases
 
@@ -118,51 +54,11 @@ w.RegisterHandler("my_custom_task", func(task *queue.Task) error {
 
 ## Configuration
 
-Edit Pogocache connection in your code:
-
-```go
-q, err := queue.NewQueue("localhost:9401")
-```
-
-Adjust task retry settings in `internal/queue/task.go`:
-
-```go
-MaxRetries: 3  // Number of retry attempts
-```
-
-### Pogocache Configuration
-
-Run Pogocache with custom options:
-
-```bash
-# Bind to specific address and port
-./pogocache -h 0.0.0.0 -p 9401
-
-# Set max memory usage
-./pogocache --maxmemory 2GB
-
-# Set number of threads
-./pogocache --threads 16
-
-# Enable authentication
-./pogocache --auth mypassword
-
-# Enable TLS
-./pogocache --tlsport 9401 --tlscert cert.pem --tlskey key.pem
-```
+See [CONFIGURATION.md](https://github.com/nadmax/nexq/blob/master/docs/CONFIGURATION.md) to know how to configure your own tasks and Pogocache.
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/tasks` | Create a new task |
-| GET | `/api/tasks` | List all tasks |
-| GET | `/api/tasks/:id` | Get task details |
-| GET | `/api/dashboard/stats` | Get tasks statistics (total, pending, running, completed and failed)|
-|GET | `/api/dashboard/history` | Get tasks history (from most recent to oldest) |
-| GET | `/api/dlq/tasks` | List all dead letter tasks |
-| GET | `/api/dlq/tasks/:id` | Get dead letter task details |
-| GET | `/api/dlq/stats` | Get dead letter queue statistics (total failed)|
+See [ENDPOINTS.md](https://github.com/nadmax/nexq/blob/master/docs/ENDPOINTS.md) to know API endpoints.
 
 ## Future Enhancements
 
@@ -177,28 +73,17 @@ Run Pogocache with custom options:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome!  
+Feel free to submit a Pull Request.
 
 ## License
 
-MIT License - feel free to use this project however you'd like!
+This project is under [MIT License](https://github.com/nadmax/nexq/blob/master/LICENSE).  
+Feel free to use this project however you'd like!
 
-## Acknowledgments
-
-Built with:
+## Resources
 
 - [Go 1.25.3](https://golang.org/)
 - [Pogocache](https://github.com/pogocache/pogocache) - Fast caching with focus on low latency and CPU efficiency
 - [go-redis](https://github.com/redis/go-redis) - Redis/Pogocache client for Go
 - Go standard library (`net/http`, `encoding/json`)
-
-### Why Pogocache?
-
-Nexq uses Pogocache instead of traditional caching solutions because:
-
-- **Faster**: Lower latency per request than Redis, Memcache, Valkey, and others
-- **More Efficient**: Uses fewer CPU cycles, reducing server costs and energy usage
-- **Better Scaling**: Optimized for both single-threaded and multi-threaded performance
-- **Protocol Compatible**: Supports Redis wire protocol, making migration seamless
-
----
