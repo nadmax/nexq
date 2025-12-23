@@ -3,237 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="index.css">
     <title>Nexq Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-        }
-
-        .container { max-width: 1400px; margin: 0 auto; }
-
-        h1 { margin-bottom: 30px; color: #333; }
-
-        h2 { margin-bottom: 15px; color: #555; font-size: 18px; }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        .tab {
-            padding: 10px 20px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: #666;
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .tab:hover { color: #007bff; }
-
-        .tab.active {
-            color: #007bff;
-            border-bottom-color: #007bff;
-        }
-
-        .tab-content { display: none; }
-
-        .tab-content.active { display: block; }
-
-        .create-task {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .form-group { margin-bottom: 15px; }
-
-        label { display: block; margin-bottom: 5px; font-weight: 500; }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-
-        button {
-            background: #007bff;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        button:hover { background: #0056b3; }
-
-        button.danger {
-            background: #dc3545;
-        }
-
-        button.danger:hover { background: #c82333; }
-
-        button.success {
-            background: #28a745;
-        }
-
-        button.success:hover { background: #218838; }
-
-        button:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-        }
-
-        .tasks {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .task {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            display: grid;
-            grid-template-columns: 2fr 1fr 100px 120px;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .task:last-child { border-bottom: none; }
-
-        .task-info small {
-            color: #666;
-            display: block;
-            margin-top: 5px;
-        }
-
-        .status {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .status.pending { background: #ffc107; color: #000; }
-
-        .status.running { background: #17a2b8; color: white; }
-
-        .status.completed { background: #28a745; color: white; }
-
-        .status.failed { background: #dc3545; color: white; }
-
-        .status.dead_letter { background: #6c757d; color: white; }
-
-        .priority {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-align: center;
-            display: inline-block;
-            margin-left: 8px;
-        }
-
-        .priority.low { background: #e3f2fd; color: #1976d2; }
-
-        .priority.medium { background: #fff3e0; color: #f57c00; }
-
-        .priority.high { background: #ffebee; color: #c62828; }
-
-        .stats {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 10px 0 0 0;
-            color: #007bff;
-        }
-
-        .stat-card h3 {
-            margin: 0;
-            color: #666;
-            font-size: 14px;
-            text-transform: uppercase;
-        }
-
-        .dlq-task {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            background: #fff9f9;
-        }
-
-        .dlq-task:last-child { border-bottom: none; }
-
-        .dlq-info {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
-
-        .dlq-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .failure-reason {
-            background: #ffe6e6;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-            font-size: 13px;
-            color: #c62828;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <h1>Nexq Dashboard</h1>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('main')">Tasks</button>
-            <button class="tab" onclick="switchTab('dlq')">Dead Letter Queue</button>
+            <button class="tab active" onclick="switchTab('main', this)">Tasks</button>
+            <button class="tab" onclick="switchTab('dlq', this)">Dead Letter Queue</button>
         </div>
 
         <div id="main-tab" class="tab-content active">
@@ -291,11 +70,11 @@
     <script>
         const API_URL = '/api';
 
-        function switchTab(tabName) {
+        function switchTab(tabName, element) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-            event.target.classList.add('active');
+            element.classList.add('active');
             document.getElementById(`${tabName}-tab`).classList.add('active');
             if (tabName === 'dlq') {
                 loadDLQTasks();
