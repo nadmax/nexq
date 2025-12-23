@@ -29,7 +29,7 @@
                     </div>
                     <div class="form-group">
                         <label>Payload (JSON)</label>
-                        <textarea id="payload" rows="4">{"to": "user@example.com", "subject": "Hello"}</textarea>
+                        <textarea id="payload" rows="4">{"to": "user@example.com", "subject": "Hello from Nexq!"}</textarea>
                     </div>
                     <div class="form-group">
                         <label>Priority</label>
@@ -43,26 +43,26 @@
                 </form>
             </div>
 
-            <div class="stats">
-                <h2>Statistics</h2>
-                <div id="stats">Loading...</div>
-            </div>
-
             <div class="tasks">
                 <h2>Tasks</h2>
                 <div id="taskList"></div>
             </div>
+
+            <div class="stats">
+                <h2>Statistics</h2>
+                <div id="stats">Loading...</div>
+            </div>
         </div>
 
         <div id="dlq-tab" class="tab-content">
-            <div class="stats">
-                <h2>Dead Letter Queue Statistics</h2>
-                <div id="dlqStats">Loading...</div>
-            </div>
-
             <div class="tasks">
                 <h2>Failed Tasks</h2>
                 <div id="dlqList"></div>
+            </div>
+
+            <div class="stats">
+                <h2>Dead Letter Queue Statistics</h2>
+                <div id="dlqStats">Loading...</div>
             </div>
         </div>
     </div>
@@ -179,6 +179,7 @@
                             <p class="stat-number">${stats.failed_tasks || 0}</p>
                         </div>
                     </div>
+                    <br>
                     ${stats.average_wait_time ? `<p><strong>Average Wait Time:</strong> ${stats.average_wait_time}</p>` : ''}
                 `;
             } catch (err) {
