@@ -24,13 +24,13 @@
                         <label>Task Type</label>
                         <select id="taskType">
                             <option value="send_email">Send Email</option>
-                            <option value="process_image">Process Image</option>
                             <option value="generate_report">Generate Report</option>
+                            <option value="process_image">Process Image</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Payload (JSON)</label>
-                        <textarea id="payload" rows="4">{"to": "user@example.com", "subject": "Hello from Nexq!"}</textarea>
+                        <textarea id="payload" rows="4">{"to": "user@example.com", "subject": "Hello from Nexq", "body": "This is a custom email!"}</textarea>
                     </div>
                     <div class="form-group">
                         <label>Priority</label>
@@ -160,21 +160,21 @@
                 <p>Schedule a task to run after a specific delay (in seconds):</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre>{"to": "user@example.com", "subject": "Hello from Nexq!"}</pre>
+                    <pre>{"to": "user@example.com", "subject": "Hello from Nexq", "body": "This is a custom email!"}</pre>
                 </div>
 
                 <div class="example-title">Schedule a task for later</div>
                 <p>Schedule a task to run after a specific delay (in seconds):</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre>{"type": "generate_report", "payload": {"report_type": "monthly"}, "schedule_in": 3600}</pre>
+                    <pre>{"report_type": "monthly", "schedule_in": 3600}</pre>
                 </div>
 
                 <div class="example-title">Process image task</div>
                 <p>Create a task to process an image:</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <pre>{"type": "process_image", "payload": {"image_url": "https://example.com/image.jpg", "operations": ["resize", "compress"]}}</pre>
+                    <pre>{"image_url": "https://example.com/image.jpg", "operations": ["resize", "compress"]}</pre>
                 </div>
             </div>
 
