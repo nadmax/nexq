@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/nadmax/nexq/internal/queue"
 	"github.com/nadmax/nexq/internal/worker"
+	"github.com/nadmax/nexq/internal/worker/handlers"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func main() {
 
 	w := worker.NewWorker(workerID, q)
 
-	w.RegisterHandler("send_email", sendEmailHandler)
+	w.RegisterHandler("send_email", handlers.SendEmailHandler)
 	w.RegisterHandler("process_image", processImageHandler)
 	w.RegisterHandler("generate_report", generateReportHandler)
 
@@ -50,23 +50,6 @@ func main() {
 
 	log.Println("Shutting down worker...")
 	w.Stop()
-}
-
-func sendEmailHandler(task *queue.Task) error {
-	to, ok := task.Payload["to"].(string)
-	if !ok {
-		return errors.New("missing 'to' field")
-	}
-
-	log.Printf("Sending email to %s...", to)
-	time.Sleep(2 * time.Second)
-
-	if rand.Float32() < 0.2 {
-		return errors.New("SMTP server connection failed")
-	}
-
-	log.Printf("Email sent to %s", to)
-	return nil
 }
 
 func processImageHandler(task *queue.Task) error {
