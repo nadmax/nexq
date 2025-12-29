@@ -20,6 +20,7 @@ body {
     background: linear-gradient(180deg, #eef2ff, #f8fafc);
     color: var(--text);
     padding: 5px;
+    margin: 0;
 }
 
 .container {
@@ -80,6 +81,39 @@ h2 {
     box-shadow: var(--shadow);
 }
 
+.task-form-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (min-width: 768px) {
+    .task-form-layout {
+        flex-direction: row;
+        gap: 24px;
+    }
+
+    .editor-column {
+        flex: 2;
+    }
+
+    .controls-column {
+        flex: 1;
+    }
+}
+
+.editor-wrapper {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 300px;
+}
+
+#editor {
+    height: 100%;
+    width: 100%;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;
@@ -89,6 +123,10 @@ h2 {
 
 label {
     display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
 }
 
 textarea {
@@ -113,6 +151,7 @@ input, select, textarea {
     border: 1px solid #e5e7eb;
     padding: 10px 12px;
     font-size: 14px;
+    background: white;
 }
 
 input:focus, select:focus, textarea:focus {
@@ -124,7 +163,7 @@ button {
     color: white;
     background: var(--primary);
     border-radius: 12px;
-    border-color: transparent;
+    border: none;
     padding: 12px 18px;
     font-weight: 600;
     transition: transform .15s ease, box-shadow .15s ease;
@@ -141,6 +180,11 @@ button.success {
 
 button.danger { 
     background: var(--danger); 
+}
+
+.controls-column button[type="submit"] {
+    width: 100%;
+    margin-top: 8px;
 }
 
 .stats-grid {
@@ -337,10 +381,15 @@ button.danger {
     background: #f8f9fa;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    padding: 16px;
+    padding: 0;
     margin: 12px 0;
-    overflow-x: auto;
+    overflow-x: hidden;
     position: relative;
+}
+
+.code-block-editor {
+    height: 120px;
+    border-radius: 12px;
 }
 
 .code-block pre {
@@ -365,6 +414,7 @@ button.danger {
     font-weight: 600;
     opacity: 0.9;
     transition: opacity 0.2s, transform 0.15s;
+    z-index: 10;
 }
 
 .copy-btn:hover {
