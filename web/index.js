@@ -312,6 +312,38 @@ setInterval(() => {
     loadTasks();
 }, 5000);
 
+function sortTable(tableId, n) {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    const th = table.querySelectorAll('th')[n];
+    const currentDir = th.getAttribute('data-sort-dir') || 'desc'; // Default to desc so first click becomes asc
+    const newDir = currentDir === 'asc' ? 'desc' : 'asc';
+
+    table.querySelectorAll('th').forEach(header => {
+        header.setAttribute('data-sort-dir', '');
+        const span = header.querySelector('span');
+        if (span) span.textContent = '';
+    });
+
+    th.setAttribute('data-sort-dir', newDir);
+    const span = th.querySelector('span');
+    if (span) span.textContent = newDir === 'asc' ? ' ▲' : ' ▼';
+
+    rows.sort((a, b) => {
+        const x = a.getElementsByTagName("td")[n].textContent.trim().toLowerCase();
+        const y = b.getElementsByTagName("td")[n].textContent.trim().toLowerCase();
+
+        if (x < y) return newDir === 'asc' ? -1 : 1;
+        if (x > y) return newDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+
 // What could it be?
 (() => {
     const d = s => atob(s);
