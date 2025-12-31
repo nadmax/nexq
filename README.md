@@ -74,7 +74,7 @@ See [ENDPOINTS.md](https://github.com/nadmax/nexq/blob/master/docs/ENDPOINTS.md)
 ## Contributing
 
 Contributions are welcome!  
-Feel free to submit a Pull Request.
+Please refer to [CONTRIBUTING.md](https://github.com/nadmax/nexq/blob/master/CONTRIBUTING.md).
 
 ## License
 
