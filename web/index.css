@@ -445,6 +445,17 @@ button.danger {
     color: var(--text);
 }
 
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px;
+}
+
+th.sortable:hover {
+    background: rgba(0,0,0,0.05);
+}
+
 .params-table td {
     padding: 12px;
     border-bottom: 1px solid #e5e7eb;
