@@ -318,7 +318,7 @@ function sortTable(tableId, n) {
     const rows = Array.from(tbody.querySelectorAll('tr'));
 
     const th = table.querySelectorAll('th')[n];
-    const currentDir = th.getAttribute('data-sort-dir') || 'desc'; // Default to desc so first click becomes asc
+    const currentDir = th.getAttribute('data-sort-dir') || 'desc';
     const newDir = currentDir === 'asc' ? 'desc' : 'asc';
 
     table.querySelectorAll('th').forEach(header => {
