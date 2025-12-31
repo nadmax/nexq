@@ -62,6 +62,12 @@ function switchTab(tabName, element) {
     if (tabName === 'dlq') {
         loadDLQTasks();
         loadDLQStats();
+    } else if (tabName == 'history') {
+        loadRecentHistory();
+        loadHistoryStats();
+    } else {
+        loadStats();
+        loadTasks();
     }
 }
 
@@ -263,6 +269,205 @@ async function loadDLQStats() {
     }
 }
 
+async function loadHistoryStats() {
+    const hours = document.getElementById('historyHours')?.value || 24;
+    try {
+        const response = await fetch(`${API_URL}/history/stats?hours=${hours}`);
+        if (!response.ok) {
+            if (response.status === 503) {
+                document.getElementById('historyStats').innerHTML = `
+                    <div class="empty-state">
+                        <p>History not configured</p>
+                        <p style="font-size: 14px; color: var(--muted);">
+                            Need a database to track task history and performance metrics
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+            throw new Error('Failed to load history stats');
+        }
+
+        const stats = await response.json();
+        if (!stats || stats.length === 0) {
+            document.getElementById('historyStats').innerHTML = `
+                <div class="empty-state">No task history in the selected time range</div>
+            `;
+            return;
+        }
+
+        const statsByType = {};
+        stats.forEach(stat => {
+            if (!statsByType[stat.type]) {
+                statsByType[stat.type] = [];
+            }
+            statsByType[stat.type].push(stat);
+        });
+
+        const html = `
+            <div class="history-stats-container">
+                ${Object.entries(statsByType).map(([type, typeStats]) => {
+            const totalCount = typeStats.reduce((sum, s) => sum + s.count, 0);
+            const completed = typeStats.find(s => s.status === 'completed');
+            const failed = typeStats.find(s => s.status === 'failed');
+
+            return `
+                <div class="type-stats">
+                    <h4>${type}</h4>
+                    <div style="margin-bottom: 12px; color: var(--muted); font-size: 13px;">
+                        Total: ${totalCount} tasks
+                    </div>
+                    ${typeStats.map(stat => `
+                        <div class="stat-row">
+                            <span class="status ${stat.status}">${stat.status}</span>
+                            <span>${stat.count} tasks</span>
+                            ${stat.avg_duration_ms ? `
+                                <span class="stat-metric">~${Math.round(stat.avg_duration_ms)}ms</span>
+                             ` : ''}
+                        </div>
+                        `).join('')}
+                        ${completed && completed.avg_duration_ms ? `
+                            <div style="padding-top: 12px; font-size: 12px; color: var(--muted);">
+                                <div>Avg Duration: ${Math.round(completed.avg_duration_ms)}ms</div>
+                                ${completed.max_duration_ms ? `<div>Max Duration: ${Math.round(completed.max_duration_ms)}ms</div>` : ''}
+                                ${completed.avg_retries ? `<div>Avg Retries: ${completed.avg_retries.toFixed(2)}</div>` : ''}
+                            </div>
+                        ` : ''}
+                        </div>
+                    `;
+        }).join('')}
+            </div>
+        `;
+
+        document.getElementById('historyStats').innerHTML = html;
+    } catch (err) {
+        console.error('Error loading history stats:', err);
+        document.getElementById('historyStats').innerHTML = `
+            <div class="empty-state">Error loading history stats</div>
+        `;
+    }
+}
+
+async function loadRecentHistory() {
+    const limit = document.getElementById('historyLimit')?.value || 50;
+
+    try {
+        const response = await fetch(`${API_URL}/history/recent?limit=${limit}`);
+        if (!response.ok) {
+            if (response.status === 503) {
+                document.getElementById('historyList').innerHTML = `
+                    <div class="empty-state">PostgreSQL history not configured</div>
+                `;
+                return;
+            }
+            throw new Error('Failed to load recent history');
+        }
+
+        const tasks = await response.json();
+        if (!tasks || tasks.length === 0) {
+            document.getElementById('historyList').innerHTML = `
+                <div class="empty-state">No historical tasks yet</div>
+            `;
+            return;
+        }
+
+        document.getElementById('historyList').innerHTML = tasks.map(task => {
+            const duration = task.duration_ms ? `${task.duration_ms}ms` : 'N/A';
+            const created = new Date(task.created_at).toLocaleString();
+            const completed = task.completed_at ? new Date(task.completed_at).toLocaleString() : 'N/A';
+
+            return `
+                <div class="task task-clickable" onclick="viewTaskHistory('${task.task_id}')">
+                    <div class="task-info">
+                        <strong>${task.type}</strong>
+                        <br>
+                        <small style="color: var(--muted);">${task.task_id}</small>
+                    </div>
+                    <div>
+                        <small>Created: ${created}</small>
+                        ${task.completed_at ? `<br><small>Completed: ${completed}</small>` : ''}
+                    </div>
+                    <div class="status ${task.status}">${task.status}</div>
+                    <div>
+                        ${task.duration_ms ? `<small>Duration: ${duration}</small><br>` : ''}
+                        <small>Retries: ${task.retry_count}</small>
+                        ${task.failure_reason ? `<br><small style="color: var(--danger);">${task.failure_reason}</small>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Error loading recent history:', err);
+        document.getElementById('historyList').innerHTML = `
+            <div class="empty-state">Error loading history</div>
+        `;
+    }
+}
+
+async function viewTaskHistory(taskId) {
+    try {
+        const response = await fetch(`${API_URL}/history/task/${taskId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load task history');
+        }
+
+        const history = await response.json();
+        if (!history || history.length === 0) {
+            alert('No execution history found for this task');
+            return;
+        }
+
+        const modal = document.getElementById('executionModal');
+        const historyHtml = history.map(exec => `
+            <div class="execution-entry">
+                <div>
+                    <strong>Attempt ${exec.attempt_number}</strong>
+                </div>
+                <div class="execution-details">
+                    <div>
+                        <span class="status ${exec.status}">${exec.status}</span>
+                    </div>
+                    <small>Worker: ${exec.worker_id}</small>
+                    ${exec.duration_ms ? `<small>Duration: ${exec.duration_ms}ms</small>` : ''}
+                    ${exec.started_at ? `<small>Started: ${new Date(exec.started_at).toLocaleString()}</small>` : ''}
+                    ${exec.error_message ? `
+                        <small style="color: var(--danger);">
+                            Error: ${exec.error_message}
+                        </small>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+
+        document.getElementById('executionHistory').innerHTML = `
+            <div style="margin-bottom: 12px; color: var(--muted);">
+                <strong>Task ID:</strong> ${taskId}
+            </div>
+            ${historyHtml}
+        `;
+
+        modal.style.display = 'flex';
+    } catch (err) {
+        console.error('Error loading task history:', err);
+        alert('Failed to load execution history');
+    }
+}
+
+function closeExecutionModal() {
+    document.getElementById('executionModal').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('executionModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeExecutionModal();
+            }
+        });
+    }
+});
+
 async function retryTask(taskId) {
     if (!confirm('Retry this task? It will be moved back to the main queue.')) {
         return;
@@ -305,12 +510,23 @@ async function purgeTask(taskId) {
     }
 }
 
-loadStats();
-loadTasks();
-setInterval(() => {
-    loadStats();
-    loadTasks();
-}, 5000);
+function refreshCurrentTab() {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab) return;
+
+    const tabId = activeTab.id;
+
+    if (tabId === 'history-tab') {
+        loadHistoryStats();
+        loadRecentHistory();
+    } else if (tabId === 'main-tab') {
+        loadStats();
+        loadTasks();
+    } else if (tabId === 'dlq-tab') {
+        loadDLQStats();
+        loadDLQTasks();
+    }
+}
 
 function sortTable(tableId, n) {
     const table = document.getElementById(tableId);
@@ -343,6 +559,7 @@ function sortTable(tableId, n) {
     rows.forEach(row => tbody.appendChild(row));
 }
 
+setInterval(refreshCurrentTab, 5000);
 
 // What could it be?
 (() => {

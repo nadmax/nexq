@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/task"
 	"github.com/nadmax/nexq/internal/worker"
 	"github.com/nadmax/nexq/internal/worker/handlers"
 )
@@ -20,7 +22,23 @@ func main() {
 		pogocacheAddr = "localhost:9401"
 	}
 
-	q, err := queue.NewQueue(pogocacheAddr)
+	postgresDSN := os.Getenv("POSTGRES_DSN")
+	if postgresDSN == "" {
+		log.Fatal("POSTGRES_DSN is required")
+	}
+
+	repo, err := repository.NewPostgresTaskRepository(postgresDSN)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer func() {
+		if err := repo.Close(); err != nil {
+			log.Printf("failed to close Postgres repository: %v", err)
+		}
+	}()
+
+	q, err := queue.NewQueue(pogocacheAddr, repo)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,8 +70,8 @@ func main() {
 	w.Stop()
 }
 
-func processImageHandler(task *queue.Task) error {
-	imageURL, ok := task.Payload["image_url"].(string)
+func processImageHandler(t *task.Task) error {
+	imageURL, ok := t.Payload["image_url"].(string)
 	if !ok {
 		return errors.New("missing 'image_url' field")
 	}
@@ -64,8 +82,8 @@ func processImageHandler(task *queue.Task) error {
 	return nil
 }
 
-func generateReportHandler(task *queue.Task) error {
-	reportType, ok := task.Payload["report_type"].(string)
+func generateReportHandler(t *task.Task) error {
+	reportType, ok := t.Payload["report_type"].(string)
 	if !ok {
 		return errors.New("missing 'report_type' field")
 	}

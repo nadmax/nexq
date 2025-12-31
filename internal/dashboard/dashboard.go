@@ -8,6 +8,7 @@ import (
 
 	"github.com/nadmax/nexq/internal/httputil"
 	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/task"
 )
 
 type Dashboard struct {
@@ -27,12 +28,12 @@ type Stats struct {
 }
 
 type TaskHistory struct {
-	TaskID      string           `json:"task_id"`
-	Type        string           `json:"type"`
-	Status      queue.TaskStatus `json:"status"`
-	CreatedAt   time.Time        `json:"created_at"`
-	CompletedAt *time.Time       `json:"completed_at"`
-	Duration    string           `json:"duration"`
+	TaskID      string          `json:"task_id"`
+	Type        string          `json:"type"`
+	Status      task.TaskStatus `json:"status"`
+	CreatedAt   time.Time       `json:"created_at"`
+	CompletedAt *time.Time      `json:"completed_at"`
+	Duration    string          `json:"duration"`
 }
 
 func NewDashboard(q *queue.Queue) *Dashboard {
@@ -55,24 +56,24 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 	var totalWaitTime time.Duration
 	waitCount := 0
 
-	for _, task := range tasks {
-		switch task.Status {
-		case queue.StatusPending:
+	for _, t := range tasks {
+		switch t.Status {
+		case task.StatusPending:
 			stats.PendingTasks++
-		case queue.StatusRunning:
+		case task.StatusRunning:
 			stats.RunningTasks++
-		case queue.StatusCompleted:
+		case task.StatusCompleted:
 			stats.CompletedTasks++
-		case queue.StatusFailed:
+		case task.StatusFailed:
 			stats.FailedTasks++
-		case queue.StatusDeadLetter:
+		case task.StatusDeadLetter:
 			stats.DeadLetterTasks++
 		}
 
-		stats.TasksByType[task.Type]++
+		stats.TasksByType[t.Type]++
 
-		if task.StartedAt != nil {
-			waitTime := task.StartedAt.Sub(task.CreatedAt)
+		if t.StartedAt != nil {
+			waitTime := t.StartedAt.Sub(t.CreatedAt)
 			totalWaitTime += waitTime
 			waitCount++
 		}

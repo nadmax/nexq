@@ -13,6 +13,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('main', this)">Tasks</button>
             <button class="tab" onclick="switchTab('dlq', this)">Dead Letter Queue</button>
+            <button class="tab" onclick="switchTab('history', this)">History</button>
             <button class="tab" onclick="switchTab('docs', this)">Docs</button>
         </div>
 
@@ -51,13 +52,42 @@
             </div>
 
             <div class="tasks">
-                <h2>Tasks</h2>
+                <h2>Current Queue Tasks</h2>
                 <div id="taskList"></div>
             </div>
 
             <div class="stats">
                 <h2>Statistics</h2>
                 <div id="stats">Loading...</div>
+            </div>
+        </div>
+
+        <div id="history-tab" class="tab-content">
+            <div class="tasks">
+                <h2>Recent Task History</h2>
+                <div class="form-group">
+                    <label>Show</label>
+                    <select id="historyLimit" onchange="loadRecentHistory()">
+                        <option value="20">20 tasks</option>
+                        <option value="50" selected>50 tasks</option>
+                        <option value="100">100 tasks</option>
+                    </select>
+                </div>
+                <div id="historyList"></div>
+            </div>
+
+            <div class="stats">
+                <h2>Task History (Last 24 Hours)</h2>
+                <div class="form-group">
+                    <label>Time Range</label>
+                    <select id="historyHours" onchange="loadHistoryStats()">
+                        <option value="1">Last Hour</option>
+                        <option value="6">Last 6 Hours</option>
+                        <option value="24" selected>Last 24 Hours</option>
+                        <option value="168">Last 7 Days</option>
+                    </select>
+                </div>
+                <div id="historyStats">Loading...</div>
             </div>
         </div>
 
@@ -119,6 +149,41 @@
                             <td><span class="endpoint-badge get">GET</span></td>
                             <td><code>/api/dlq/stats</code></td>
                             <td>Get dead letter queue statistics</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/stats</code></td>
+                            <td>Get stats for the last 24 hours</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/stats?hours={hours}</code></td>
+                            <td>Get stats for the last specified hours</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/recent</code></td>
+                            <td>Get the last 100 tasks</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/recent?limit={limit}</code></td>
+                            <td>Get the last specified numbers of tasks </td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/task/{id}</code></td>
+                            <td>Get execution history for a specific task</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/type/{task_type}</code></td>
+                            <td>Get tasks by type</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge get">GET</span></td>
+                            <td><code>/api/history/type/{task_type}?limit={limit}</code></td>
+                            <td>Get a specific number of tasks by type</td>
                         </tr>
                         <tr>
                             <td><span class="endpoint-badge post">POST</span></td>
@@ -223,6 +288,16 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div id="executionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Execution History</h3>
+                <button class="modal-close" onclick="closeExecutionModal()">&times;</button>
+            </div>
+            <div id="executionHistory"></div>
         </div>
     </div>
     
