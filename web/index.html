@@ -210,32 +210,33 @@
                     <div class="task-type-card">
                         <h4>send_email</h4>
                         <p>Send email notifications</p>
-                        <p><strong>Fields:</strong> <code>to</code>, <code>subject</code>, <code>body</code></p>
+                        <p><strong class="required-label">Required:</strong> <code>to</code>, <code>subject</code>, <code>body</code></p>
                     </div>
                     <div class="task-type-card">
                         <h4>process_image</h4>
                         <p>Process and transform images</p>
-                        <p><strong>Fields:</strong> <code>image_url</code>, <code>operations</code></p>
+                        <p><strong class="required-label">Required:</strong> <code>image_url</code>, <code>operations</code></p>
                     </div>
                     <div class="task-type-card">
                         <h4>generate_report</h4>
-                        <p>Generate reports and analytics</p>
-                        <p><strong>Fields:</strong> <code>report_type</code></p>
+                        <p>Generate performance report and analytics </p>
+                        <p><strong class="required-label">Required:</strong> <code>report_type</code></p>
+                        <p><strong class="optional-label">Optional:</strong> <code>start_time</code>, <code>end_time</code>, <code>format</code>, <code>output_path</code>, <code>schedule_in</code></p>
                     </div>
                 </div>
             </div>
 
             <div class="docs-section">
                 <h3>Examples</h3>
-                <div class="example-title">Create a task</div>
-                <p>Schedule a task to run after a specific delay (in seconds):</p>
+                <div class="example-title">Send an email</div>
+                <p>Create a task that sends an email</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this, 0)">Copy</button>
                     <div class="code-block-editor" id="example-0"></div>
                 </div>
 
-                <div class="example-title">Schedule a task for later</div>
-                <p>Schedule a task to run after a specific delay (in seconds):</p>
+                <div class="example-title">Generate performance report for later</div>
+                <p>Create a task that generates a performance report with customizable date range, format, output path, and scheduling (in seconds):</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this, 1)">Copy</button>
                     <div class="code-block-editor" id="example-1"></div>
@@ -248,47 +249,7 @@
                     <div class="code-block-editor" id="example-2"></div>
                 </div>
             </div>
-
-            <div class="docs-section">
-                <h3>Task Parameters</h3>
-                <table class="params-table">
-                    <thead>
-                        <tr>
-                            <th>Parameter</th>
-                            <th>Type</th>
-                            <th>Required</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>type</code></td>
-                            <td>string</td>
-                            <td>Yes</td>
-                            <td>The type of task to execute</td>
-                        </tr>
-                        <tr>
-                            <td><code>payload</code></td>
-                            <td>object</td>
-                            <td>Yes</td>
-                            <td>Task-specific data</td>
-                        </tr>
-                        <tr>
-                            <td><code>schedule_in</code></td>
-                            <td>integer</td>
-                            <td>No</td>
-                            <td>Delay in seconds before execution</td>
-                        </tr>
-                        <tr>
-                            <td><code>max_retries</code></td>
-                            <td>integer</td>
-                            <td>No</td>
-                            <td>Maximum retry attempts (default: 3)</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+         </div>
     </div>
 
     <div id="executionModal" class="modal" style="display: none;">

@@ -394,6 +394,10 @@ func (r *PostgresTaskRepository) GetTaskHistory(ctx context.Context, taskID stri
 	return history, rows.Err()
 }
 
+func (r *PostgresTaskRepository) DB() *sql.DB {
+	return r.db
+}
+
 func (r *PostgresTaskRepository) Close() error {
 	return r.db.Close()
 }

@@ -46,7 +46,7 @@ See [ARCHITECTURE.md](https://github.com/nadmax/nexq/blob/master/docs/ARCHITECTU
 
 - Background email sending
 - Image/video processing pipelines
-- Report generation
+- Report task performance generator
 - Data synchronization tasks
 - Scheduled maintenance jobs
 - Webhook delivery with retries
@@ -63,13 +63,13 @@ See [ENDPOINTS.md](https://github.com/nadmax/nexq/blob/master/docs/ENDPOINTS.md)
 ## Future Enhancements
 
 - [x] Dead letter queue for permanently failed tasks
+- [x] Persistent task history
 - [ ] Task dependencies and workflows
 - [ ] Cron-like recurring tasks
 - [ ] Worker health monitoring and metrics
 - [ ] Authentication and authorization
 - [ ] Webhook notifications
 - [ ] Task cancellation support
-- [ ] Persistent task history
 
 ## Contributing
 

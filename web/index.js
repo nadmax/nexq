@@ -1,7 +1,7 @@
 const API_URL = '/api';
 const exampleCode = [
     { to: "user@example.com", subject: "Hello from Nexq", body: "This is a custom email!" },
-    { report_type: "monthly", schedule_in: 3600 },
+    { report_type: "task_summary", start_time: "2026-01-01T00:00:00Z", end_time: "2026-01-04T23:59:59Z", format: "csv", output_path: "./reports", schedule_in: 3600 },
     { image_url: "https://example.com/image.jpg", operations: ["resize", "compress"] }
 ];
 let editor;

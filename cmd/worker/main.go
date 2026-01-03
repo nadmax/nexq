@@ -55,10 +55,11 @@ func main() {
 	}
 
 	w := worker.NewWorker(workerID, q)
+	reportGen := handlers.NewReportGenerator(repo.DB())
 
 	w.RegisterHandler("send_email", handlers.SendEmailHandler)
 	w.RegisterHandler("process_image", processImageHandler)
-	w.RegisterHandler("generate_report", generateReportHandler)
+	w.RegisterHandler("generate_report", reportGen.GenerateReportHandler)
 
 	go w.Start()
 
@@ -79,17 +80,5 @@ func processImageHandler(t *task.Task) error {
 	log.Printf("Processing image: %s", imageURL)
 	time.Sleep(5 * time.Second)
 	log.Printf("Image processed: %s", imageURL)
-	return nil
-}
-
-func generateReportHandler(t *task.Task) error {
-	reportType, ok := t.Payload["report_type"].(string)
-	if !ok {
-		return errors.New("missing 'report_type' field")
-	}
-
-	log.Printf("Generating report: %s", reportType)
-	time.Sleep(3 * time.Second)
-	log.Printf("Report generated: %s", reportType)
 	return nil
 }
