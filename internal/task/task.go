@@ -1,5 +1,6 @@
-// Package queue implements a Redis-backed distributed job queue with support for task scheduling and retries.
-package queue
+// Package task defines the core task domain model used by the queue and persistence layers.
+// It contains task metadata, status and priority definitions, and serialization helpers.
+package task
 
 import (
 	"encoding/json"

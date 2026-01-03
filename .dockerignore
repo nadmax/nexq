@@ -1,4 +1,5 @@
 README
 .git*
 LICENSE
+.env.example
 *_test.go

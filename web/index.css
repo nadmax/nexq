@@ -288,6 +288,142 @@ button.danger {
     color: var(--muted);
 }
 
+.history-stats-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.type-stats {
+    background: linear-gradient(135deg, #f9fafb, #eef2ff);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.type-stats h4 {
+    margin: 0 0 12px 0;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-row .status {
+    margin-right: auto;
+}
+
+.stat-row span {
+    margin-left: 8px;
+}
+
+.stat-metric {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius);
+    max-width: 800px;
+    width: 100%;
+    max-height: 80vh;
+    overflow: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--text);
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 28px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: background .2s;
+}
+
+.modal-close:hover {
+    background: #f3f4f6;
+    transform: none;
+    box-shadow: none;
+}
+
+#executionHistory {
+    padding: 20px;
+}
+
+.execution-entry {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.execution-entry:last-child {
+    margin-bottom: 0;
+}
+
+.execution-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.execution-details small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
 .docs-section {
     background: var(--card);
     border-radius: var(--radius);

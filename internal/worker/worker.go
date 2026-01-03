@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/task"
 )
 
-type TaskHandler func(*queue.Task) error
+type TaskHandler func(*task.Task) error
 
 type Worker struct {
 	id           string
@@ -56,53 +57,111 @@ func (w *Worker) Start() {
 	}
 }
 
-func (w *Worker) processTask(task *queue.Task) {
-	log.Printf("Worker %s processing task %s (type: %s)", w.id, task.ID, task.Type)
+func (w *Worker) processTask(t *task.Task) {
+	log.Printf("Worker %s processing task %s (type: %s)", w.id, t.ID, t.Type)
 
-	now := time.Now()
-	task.Status = queue.StatusRunning
-	task.StartedAt = &now
-	if err := w.queue.UpdateTask(task); err != nil {
+	startTime := time.Now()
+	t.Status = task.StatusRunning
+	t.StartedAt = &startTime
+	if err := w.queue.UpdateTask(t); err != nil {
 		log.Printf("Failed to update task status to running: %v", err)
 	}
 
-	handler, exists := w.handlers[task.Type]
+	if err := w.queue.LogExecution(
+		t.ID,
+		t.RetryCount+1,
+		string(task.StatusRunning),
+		0,
+		"",
+		w.id,
+	); err != nil {
+		log.Printf("Warning: failed to log execution start: %v", err)
+	}
+
+	handler, exists := w.handlers[t.Type]
 	if !exists {
-		task.Status = queue.StatusFailed
-		task.Error = fmt.Sprintf("no handler for task type: %s", task.Type)
-		if err := w.queue.UpdateTask(task); err != nil {
-			log.Printf("Failed to update task: %v", err)
-		}
+		w.handleTaskFailure(t, fmt.Errorf("no handler for task type: %s", t.Type), startTime)
 		return
 	}
 
-	err := handler(task)
+	err := handler(t)
 	completedAt := time.Now()
-	task.CompletedAt = &completedAt
+	t.CompletedAt = &completedAt
+	durationMs := int(completedAt.Sub(startTime).Milliseconds())
 
 	if err != nil {
-		task.RetryCount++
-		if task.RetryCount < task.MaxRetries {
-			task.Status = queue.StatusPending
-			task.ScheduledAt = time.Now().Add(time.Duration(task.RetryCount) * 10 * time.Second)
-			if err := w.queue.Enqueue(task); err != nil {
-				log.Printf("Failed to re-enqueue task: %v", err)
-			}
-			log.Printf("Task %s failed, will retry (%d/%d)", task.ID, task.RetryCount, task.MaxRetries)
-		} else {
-			task.Status = queue.StatusFailed
-			task.Error = err.Error()
-			if err := w.queue.UpdateTask(task); err != nil {
-				log.Printf("Failed to update failed task: %v", err)
-			}
-			log.Printf("Task %s failed permanently: %v", task.ID, err)
-		}
+		w.handleTaskFailure(t, err, startTime)
 	} else {
-		task.Status = queue.StatusCompleted
-		if err := w.queue.UpdateTask(task); err != nil {
-			log.Printf("Failed to update completed task: %v", err)
+		w.handleTaskSuccess(t, durationMs)
+	}
+}
+
+func (w *Worker) handleTaskSuccess(t *task.Task, durationMs int) {
+	t.Status = task.StatusCompleted
+	if err := w.queue.UpdateTask(t); err != nil {
+		log.Printf("Failed to update completed task: %v", err)
+	}
+	if err := w.queue.CompleteTask(t.ID, durationMs); err != nil {
+		log.Printf("Warning: failed to mark task as completed in history: %v", err)
+	}
+	if err := w.queue.LogExecution(
+		t.ID,
+		t.RetryCount+1,
+		string(task.StatusCompleted),
+		durationMs,
+		"",
+		w.id,
+	); err != nil {
+		log.Printf("Warning: failed to log execution: %v", err)
+	}
+
+	log.Printf("Worker %s completed task %s successfully in %dms", w.id, t.ID, durationMs)
+}
+
+func (w *Worker) handleTaskFailure(t *task.Task, taskErr error, startTime time.Time) {
+	durationMs := int(time.Since(startTime).Milliseconds())
+	t.RetryCount++
+	t.Error = taskErr.Error()
+
+	if err := w.queue.LogExecution(
+		t.ID,
+		t.RetryCount,
+		string(task.StatusFailed),
+		durationMs,
+		taskErr.Error(),
+		w.id,
+	); err != nil {
+		log.Printf("Warning: failed to log execution: %v", err)
+	}
+
+	if t.RetryCount < t.MaxRetries {
+		t.Status = task.StatusPending
+		backoffDuration := time.Duration(t.RetryCount) * 10 * time.Second
+		t.ScheduledAt = time.Now().Add(backoffDuration)
+
+		if err := w.queue.Enqueue(t); err != nil {
+			log.Printf("Failed to re-enqueue task: %v", err)
 		}
-		log.Printf("Task %s completed successfully", task.ID)
+		if err := w.queue.IncrementRetryCount(t.ID); err != nil {
+			log.Printf("Warning: failed to increment retry count: %v", err)
+		}
+		if err := w.queue.FailTask(t.ID, taskErr.Error(), durationMs); err != nil {
+			log.Printf("Warning: failed to record task failure: %v", err)
+		}
+
+		log.Printf("Worker %s: Task %s failed, will retry (%d/%d) in %s",
+			w.id, t.ID, t.RetryCount, t.MaxRetries, backoffDuration)
+	} else {
+		t.Status = task.StatusFailed
+		if err := w.queue.UpdateTask(t); err != nil {
+			log.Printf("Failed to update failed task: %v", err)
+		}
+		if err := w.queue.MoveToDeadLetter(t, taskErr.Error()); err != nil {
+			log.Printf("Failed to move task to DLQ: %v", err)
+		}
+
+		log.Printf("Worker %s: Task %s failed permanently after %d attempts: %v",
+			w.id, t.ID, t.RetryCount, taskErr)
 	}
 }
 

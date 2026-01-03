@@ -6,12 +6,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nadmax/nexq/internal/dashboard"
 	"github.com/nadmax/nexq/internal/httputil"
 	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/task"
 )
 
 type API struct {
@@ -20,10 +22,10 @@ type API struct {
 }
 
 type CreateTaskRequest struct {
-	Type       string              `json:"type"`
-	Payload    map[string]any      `json:"payload"`
-	Priority   *queue.TaskPriority `json:"priority"`
-	ScheduleIn *int                `json:"schedule_in"`
+	Type       string             `json:"type"`
+	Payload    map[string]any     `json:"payload"`
+	Priority   *task.TaskPriority `json:"priority"`
+	ScheduleIn *int               `json:"schedule_in"`
 }
 
 func NewAPI(q *queue.Queue) *API {
@@ -47,6 +49,11 @@ func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/dlq/tasks", a.handleDLQTasks)
 	a.mux.HandleFunc("/api/dlq/tasks/", a.handleDLQTaskByID)
 	a.mux.HandleFunc("/api/dlq/stats", a.handleDLQStats)
+
+	a.mux.HandleFunc("/api/history/stats", a.handleHistoryStats)
+	a.mux.HandleFunc("/api/history/recent", a.handleRecentHistory)
+	a.mux.HandleFunc("/api/history/task/", a.handleTaskHistory)
+	a.mux.HandleFunc("/api/history/type/", a.handleTasksByType)
 
 	fs := http.FileServer(http.Dir("./web"))
 	a.mux.Handle("/", fs)
@@ -91,24 +98,24 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	priority := queue.PriorityMedium
+	priority := task.PriorityMedium
 	if req.Priority != nil {
 		priority = *req.Priority
 	}
 
-	task := queue.NewTask(req.Type, req.Payload, priority)
+	t := task.NewTask(req.Type, req.Payload, priority)
 	if req.ScheduleIn != nil {
-		task.ScheduledAt = time.Now().Add(time.Duration(*req.ScheduleIn) * time.Second)
+		t.ScheduledAt = time.Now().Add(time.Duration(*req.ScheduleIn) * time.Second)
 	}
 
-	if err := a.queue.Enqueue(task); err != nil {
+	if err := a.queue.Enqueue(t); err != nil {
 		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(task); err != nil {
+	if err := json.NewEncoder(w).Encode(t); err != nil {
 		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -253,6 +260,139 @@ func (a *API) handleDLQStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleHistoryStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	repo := a.queue.GetRepository()
+	if repo == nil {
+		httputil.WriteJSONError(w, "History not available (PostgreSQL not configured)", http.StatusServiceUnavailable)
+		return
+	}
+
+	hours := 24
+	if h := r.URL.Query().Get("hours"); h != "" {
+		if parsed, err := strconv.Atoi(h); err == nil {
+			hours = parsed
+		}
+	}
+
+	stats, err := repo.GetTaskStats(r.Context(), hours)
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleRecentHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	repo := a.queue.GetRepository()
+	if repo == nil {
+		httputil.WriteJSONError(w, "History not available (PostgreSQL not configured)", http.StatusServiceUnavailable)
+		return
+	}
+
+	limit := 100
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil {
+			limit = parsed
+		}
+	}
+
+	tasks, err := repo.GetRecentTasks(r.Context(), limit)
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleTaskHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	repo := a.queue.GetRepository()
+	if repo == nil {
+		httputil.WriteJSONError(w, "History not available (PostgreSQL not configured)", http.StatusServiceUnavailable)
+		return
+	}
+
+	taskID := strings.TrimPrefix(r.URL.Path, "/api/history/task/")
+	if taskID == "" {
+		httputil.WriteJSONError(w, "Task ID is required", http.StatusBadRequest)
+		return
+	}
+
+	history, err := repo.GetTaskHistory(r.Context(), taskID)
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(history); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleTasksByType(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	repo := a.queue.GetRepository()
+	if repo == nil {
+		httputil.WriteJSONError(w, "History not available (PostgreSQL not configured)", http.StatusServiceUnavailable)
+		return
+	}
+
+	taskType := strings.TrimPrefix(r.URL.Path, "/api/history/type/")
+	if taskType == "" {
+		httputil.WriteJSONError(w, "Task type is required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 100
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil {
+			limit = parsed
+		}
+	}
+
+	tasks, err := repo.GetTasksByType(r.Context(), taskType, limit)
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
 		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}

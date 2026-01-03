@@ -8,6 +8,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,12 +18,25 @@ func setupTestDashboard(t *testing.T) (*Dashboard, *queue.Queue, *miniredis.Mini
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
-	q, err := queue.NewQueue(mr.Addr())
+	q, err := queue.NewQueue(mr.Addr(), nil)
 	require.NoError(t, err)
 
 	dash := NewDashboard(q)
 
 	return dash, q, mr
+}
+
+func setupTestDashboardWithMockRepo(t *testing.T) (*Dashboard, *queue.Queue, *repository.MockPostgresRepository, *miniredis.Miniredis) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+
+	mockRepo := repository.NewMockPostgresRepository()
+	q, err := queue.NewQueue(mr.Addr(), mockRepo)
+	require.NoError(t, err)
+
+	dash := NewDashboard(q)
+
+	return dash, q, mockRepo, mr
 }
 
 func TestNewDashboard(t *testing.T) {
@@ -64,20 +79,20 @@ func TestGetStats_WithTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	pending := queue.NewTask("pending_task", nil, queue.PriorityMedium)
-	pending.Status = queue.StatusPending
+	pending := task.NewTask("pending_task", nil, task.PriorityMedium)
+	pending.Status = task.StatusPending
 	require.NoError(t, q.Enqueue(pending))
 	require.NoError(t, q.UpdateTask(pending))
 
-	running := queue.NewTask("running_task", nil, queue.PriorityMedium)
-	running.Status = queue.StatusRunning
+	running := task.NewTask("running_task", nil, task.PriorityMedium)
+	running.Status = task.StatusRunning
 	now := time.Now()
 	running.StartedAt = &now
 	require.NoError(t, q.Enqueue(running))
 	require.NoError(t, q.UpdateTask(running))
 
-	completed := queue.NewTask("completed_task", nil, queue.PriorityMedium)
-	completed.Status = queue.StatusCompleted
+	completed := task.NewTask("completed_task", nil, task.PriorityMedium)
+	completed.Status = task.StatusCompleted
 	startTime := time.Now().Add(-2 * time.Second)
 	completedTime := time.Now()
 	completed.StartedAt = &startTime
@@ -85,8 +100,8 @@ func TestGetStats_WithTasks(t *testing.T) {
 	require.NoError(t, q.Enqueue(completed))
 	require.NoError(t, q.UpdateTask(completed))
 
-	failed := queue.NewTask("failed_task", nil, queue.PriorityMedium)
-	failed.Status = queue.StatusFailed
+	failed := task.NewTask("failed_task", nil, task.PriorityMedium)
+	failed.Status = task.StatusFailed
 	require.NoError(t, q.Enqueue(failed))
 	require.NoError(t, q.UpdateTask(failed))
 
@@ -112,12 +127,12 @@ func TestGetStats_TasksByType(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	email1 := queue.NewTask("send_email", map[string]any{"to": "user1@test.com"}, queue.PriorityMedium)
-	email2 := queue.NewTask("send_email", map[string]any{"to": "user2@test.com"}, queue.PriorityMedium)
-	email3 := queue.NewTask("send_email", map[string]any{"to": "user3@test.com"}, queue.PriorityMedium)
-	image1 := queue.NewTask("process_image", map[string]any{"url": "img1.jpg"}, queue.PriorityMedium)
-	image2 := queue.NewTask("process_image", map[string]any{"url": "img2.jpg"}, queue.PriorityMedium)
-	report := queue.NewTask("generate_report", map[string]any{"type": "monthly"}, queue.PriorityMedium)
+	email1 := task.NewTask("send_email", map[string]any{"to": "user1@test.com"}, task.PriorityMedium)
+	email2 := task.NewTask("send_email", map[string]any{"to": "user2@test.com"}, task.PriorityMedium)
+	email3 := task.NewTask("send_email", map[string]any{"to": "user3@test.com"}, task.PriorityMedium)
+	image1 := task.NewTask("process_image", map[string]any{"url": "img1.jpg"}, task.PriorityMedium)
+	image2 := task.NewTask("process_image", map[string]any{"url": "img2.jpg"}, task.PriorityMedium)
+	report := task.NewTask("generate_report", map[string]any{"type": "monthly"}, task.PriorityMedium)
 
 	require.NoError(t, q.Enqueue(email1))
 	require.NoError(t, q.Enqueue(email2))
@@ -145,19 +160,19 @@ func TestGetStats_AverageWaitTime(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := queue.NewTask("test1", nil, queue.PriorityMedium)
+	task1 := task.NewTask("test1", nil, task.PriorityMedium)
 	task1.CreatedAt = time.Now().Add(-10 * time.Second)
 	startTime1 := time.Now().Add(-5 * time.Second)
 	task1.StartedAt = &startTime1
-	task1.Status = queue.StatusCompleted
+	task1.Status = task.StatusCompleted
 	require.NoError(t, q.Enqueue(task1))
 	require.NoError(t, q.UpdateTask(task1))
 
-	task2 := queue.NewTask("test2", nil, queue.PriorityMedium)
+	task2 := task.NewTask("test2", nil, task.PriorityMedium)
 	task2.CreatedAt = time.Now().Add(-8 * time.Second)
 	startTime2 := time.Now().Add(-3 * time.Second)
 	task2.StartedAt = &startTime2
-	task2.Status = queue.StatusCompleted
+	task2.Status = task.StatusCompleted
 	require.NoError(t, q.Enqueue(task2))
 	require.NoError(t, q.UpdateTask(task2))
 
@@ -178,13 +193,13 @@ func TestGetStats_NoStartedTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := queue.NewTask("pending1", nil, queue.PriorityMedium)
-	task1.Status = queue.StatusPending
+	task1 := task.NewTask("pending1", nil, task.PriorityMedium)
+	task1.Status = task.StatusPending
 	require.NoError(t, q.Enqueue(task1))
 	require.NoError(t, q.UpdateTask(task1))
 
-	task2 := queue.NewTask("pending2", nil, queue.PriorityMedium)
-	task2.Status = queue.StatusPending
+	task2 := task.NewTask("pending2", nil, task.PriorityMedium)
+	task2.Status = task.StatusPending
 	require.NoError(t, q.Enqueue(task2))
 	require.NoError(t, q.UpdateTask(task2))
 
@@ -225,14 +240,14 @@ func TestGetRecentTasks_WithCompletedTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task := queue.NewTask("completed_task", map[string]any{"data": "test"}, queue.PriorityMedium)
-	task.Status = queue.StatusCompleted
+	tsk := task.NewTask("completed_task", map[string]any{"data": "test"}, task.PriorityMedium)
+	tsk.Status = task.StatusCompleted
 	startTime := time.Now().Add(-5 * time.Second)
 	completedTime := time.Now()
-	task.StartedAt = &startTime
-	task.CompletedAt = &completedTime
-	require.NoError(t, q.Enqueue(task))
-	require.NoError(t, q.UpdateTask(task))
+	tsk.StartedAt = &startTime
+	tsk.CompletedAt = &completedTime
+	require.NoError(t, q.Enqueue(tsk))
+	require.NoError(t, q.UpdateTask(tsk))
 
 	req := httptest.NewRequest("GET", "/api/dashboard/history", nil)
 	w := httptest.NewRecorder()
@@ -245,9 +260,9 @@ func TestGetRecentTasks_WithCompletedTasks(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &history))
 
 	assert.Len(t, history, 1)
-	assert.Equal(t, task.ID, history[0].TaskID)
-	assert.Equal(t, task.Type, history[0].Type)
-	assert.Equal(t, task.Status, history[0].Status)
+	assert.Equal(t, tsk.ID, history[0].TaskID)
+	assert.Equal(t, tsk.Type, history[0].Type)
+	assert.Equal(t, tsk.Status, history[0].Status)
 	assert.NotEmpty(t, history[0].Duration)
 }
 
@@ -256,25 +271,25 @@ func TestGetRecentTasks_OnlyCompletedOrFailed(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	pending := queue.NewTask("pending", nil, queue.PriorityMedium)
-	pending.Status = queue.StatusPending
+	pending := task.NewTask("pending", nil, task.PriorityMedium)
+	pending.Status = task.StatusPending
 	require.NoError(t, q.Enqueue(pending))
 	require.NoError(t, q.UpdateTask(pending))
 
-	running := queue.NewTask("running", nil, queue.PriorityMedium)
-	running.Status = queue.StatusRunning
+	running := task.NewTask("running", nil, task.PriorityMedium)
+	running.Status = task.StatusRunning
 	require.NoError(t, q.Enqueue(running))
 	require.NoError(t, q.UpdateTask(running))
 
-	completed := queue.NewTask("completed", nil, queue.PriorityMedium)
-	completed.Status = queue.StatusCompleted
+	completed := task.NewTask("completed", nil, task.PriorityMedium)
+	completed.Status = task.StatusCompleted
 	now := time.Now()
 	completed.CompletedAt = &now
 	require.NoError(t, q.Enqueue(completed))
 	require.NoError(t, q.UpdateTask(completed))
 
-	failed := queue.NewTask("failed", nil, queue.PriorityMedium)
-	failed.Status = queue.StatusFailed
+	failed := task.NewTask("failed", nil, task.PriorityMedium)
+	failed.Status = task.StatusFailed
 	failed.CompletedAt = &now
 	require.NoError(t, q.Enqueue(failed))
 	require.NoError(t, q.UpdateTask(failed))
@@ -301,22 +316,22 @@ func TestGetRecentTasks_Last24HoursOnly(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	old := queue.NewTask("old_task", nil, queue.PriorityMedium)
-	old.Status = queue.StatusCompleted
+	old := task.NewTask("old_task", nil, task.PriorityMedium)
+	old.Status = task.StatusCompleted
 	oldTime := time.Now().Add(-25 * time.Hour)
 	old.CompletedAt = &oldTime
 	require.NoError(t, q.Enqueue(old))
 	require.NoError(t, q.UpdateTask(old))
 
-	recent := queue.NewTask("recent_task", nil, queue.PriorityMedium)
-	recent.Status = queue.StatusCompleted
+	recent := task.NewTask("recent_task", nil, task.PriorityMedium)
+	recent.Status = task.StatusCompleted
 	recentTime := time.Now().Add(-1 * time.Hour)
 	recent.CompletedAt = &recentTime
 	require.NoError(t, q.Enqueue(recent))
 	require.NoError(t, q.UpdateTask(recent))
 
-	veryRecent := queue.NewTask("very_recent", nil, queue.PriorityMedium)
-	veryRecent.Status = queue.StatusCompleted
+	veryRecent := task.NewTask("very_recent", nil, task.PriorityMedium)
+	veryRecent.Status = task.StatusCompleted
 	now := time.Now()
 	veryRecent.CompletedAt = &now
 	require.NoError(t, q.Enqueue(veryRecent))
@@ -343,15 +358,15 @@ func TestGetRecentTasks_WithDuration(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task := queue.NewTask("timed_task", nil, queue.PriorityMedium)
-	task.Status = queue.StatusCompleted
-	task.CreatedAt = time.Now().Add(-10 * time.Second)
+	tsk := task.NewTask("timed_task", nil, task.PriorityMedium)
+	tsk.Status = task.StatusCompleted
+	tsk.CreatedAt = time.Now().Add(-10 * time.Second)
 	startTime := time.Now().Add(-8 * time.Second)
 	completedTime := time.Now().Add(-3 * time.Second)
-	task.StartedAt = &startTime
-	task.CompletedAt = &completedTime
-	require.NoError(t, q.Enqueue(task))
-	require.NoError(t, q.UpdateTask(task))
+	tsk.StartedAt = &startTime
+	tsk.CompletedAt = &completedTime
+	require.NoError(t, q.Enqueue(tsk))
+	require.NoError(t, q.UpdateTask(tsk))
 
 	req := httptest.NewRequest("GET", "/api/dashboard/history", nil)
 	w := httptest.NewRecorder()
@@ -363,7 +378,7 @@ func TestGetRecentTasks_WithDuration(t *testing.T) {
 
 	require.Len(t, history, 1)
 	assert.NotEmpty(t, history[0].Duration)
-	assert.Contains(t, history[0].Duration, "s") // Should have seconds
+	assert.Contains(t, history[0].Duration, "s")
 }
 
 func TestGetRecentTasks_NoDuration_WhenNotStarted(t *testing.T) {
@@ -371,12 +386,12 @@ func TestGetRecentTasks_NoDuration_WhenNotStarted(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task := queue.NewTask("no_start", nil, queue.PriorityMedium)
-	task.Status = queue.StatusCompleted
+	tsk := task.NewTask("no_start", nil, task.PriorityMedium)
+	tsk.Status = task.StatusCompleted
 	now := time.Now()
-	task.CompletedAt = &now
-	require.NoError(t, q.Enqueue(task))
-	require.NoError(t, q.UpdateTask(task))
+	tsk.CompletedAt = &now
+	require.NoError(t, q.Enqueue(tsk))
+	require.NoError(t, q.UpdateTask(tsk))
 
 	req := httptest.NewRequest("GET", "/api/dashboard/history", nil)
 	w := httptest.NewRecorder()
@@ -398,12 +413,12 @@ func TestGetRecentTasks_MultipleTasks(t *testing.T) {
 	now := time.Now()
 
 	for i := 1; i <= 5; i++ {
-		task := queue.NewTask("task", map[string]any{"id": i}, queue.PriorityMedium)
-		task.Status = queue.StatusCompleted
+		tsk := task.NewTask("task", map[string]any{"id": i}, task.PriorityMedium)
+		tsk.Status = task.StatusCompleted
 		completedTime := now.Add(-time.Duration(i) * time.Hour)
-		task.CompletedAt = &completedTime
-		require.NoError(t, q.Enqueue(task))
-		require.NoError(t, q.UpdateTask(task))
+		tsk.CompletedAt = &completedTime
+		require.NoError(t, q.Enqueue(tsk))
+		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	req := httptest.NewRequest("GET", "/api/dashboard/history", nil)
@@ -417,7 +432,7 @@ func TestGetRecentTasks_MultipleTasks(t *testing.T) {
 	assert.Len(t, history, 5)
 
 	for _, h := range history {
-		assert.Equal(t, queue.StatusCompleted, h.Status)
+		assert.Equal(t, task.StatusCompleted, h.Status)
 		assert.NotEmpty(t, h.TaskID)
 		assert.NotZero(t, h.CreatedAt)
 	}
@@ -429,31 +444,31 @@ func TestGetStats_MixedStatusCounts(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	for range 10 {
-		task := queue.NewTask("pending", nil, queue.PriorityMedium)
-		task.Status = queue.StatusPending
-		require.NoError(t, q.Enqueue(task))
-		require.NoError(t, q.UpdateTask(task))
+		tsk := task.NewTask("pending", nil, task.PriorityMedium)
+		tsk.Status = task.StatusPending
+		require.NoError(t, q.Enqueue(tsk))
+		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 5 {
-		task := queue.NewTask("running", nil, queue.PriorityMedium)
-		task.Status = queue.StatusRunning
-		require.NoError(t, q.Enqueue(task))
-		require.NoError(t, q.UpdateTask(task))
+		tsk := task.NewTask("running", nil, task.PriorityMedium)
+		tsk.Status = task.StatusRunning
+		require.NoError(t, q.Enqueue(tsk))
+		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 3 {
-		task := queue.NewTask("completed", nil, queue.PriorityMedium)
-		task.Status = queue.StatusCompleted
-		require.NoError(t, q.Enqueue(task))
-		require.NoError(t, q.UpdateTask(task))
+		tsk := task.NewTask("completed", nil, task.PriorityMedium)
+		tsk.Status = task.StatusCompleted
+		require.NoError(t, q.Enqueue(tsk))
+		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 2 {
-		task := queue.NewTask("failed", nil, queue.PriorityMedium)
-		task.Status = queue.StatusFailed
-		require.NoError(t, q.Enqueue(task))
-		require.NoError(t, q.UpdateTask(task))
+		tsk := task.NewTask("failed", nil, task.PriorityMedium)
+		tsk.Status = task.StatusFailed
+		require.NoError(t, q.Enqueue(tsk))
+		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	req := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
@@ -469,4 +484,348 @@ func TestGetStats_MixedStatusCounts(t *testing.T) {
 	assert.Equal(t, 5, stats.RunningTasks)
 	assert.Equal(t, 3, stats.CompletedTasks)
 	assert.Equal(t, 2, stats.FailedTasks)
+}
+
+func TestGetStatsWithRepository(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.TaskStats = []repository.TaskStats{
+		{
+			Type:          "send_email",
+			Status:        "completed",
+			Count:         50,
+			AvgDurationMs: 234.5,
+			MaxDurationMs: 1000,
+			MinDurationMs: 50,
+			AvgRetries:    0.3,
+		},
+		{
+			Type:          "send_email",
+			Status:        "failed",
+			Count:         5,
+			AvgDurationMs: 180.0,
+			AvgRetries:    2.1,
+		},
+		{
+			Type:          "process_payment",
+			Status:        "completed",
+			Count:         100,
+			AvgDurationMs: 450.2,
+			MaxDurationMs: 2000,
+			MinDurationMs: 100,
+			AvgRetries:    0.1,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
+
+	dash.GetStats(w, r)
+
+	assert.Equal(t, 200, w.Code)
+
+	var stats map[string]any
+	err := json.NewDecoder(w.Body).Decode(&stats)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, stats)
+}
+
+func TestGetRecentTasksWithRepository(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	now := time.Now()
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:      "task-1",
+			Type:        "send_email",
+			Status:      "completed",
+			CreatedAt:   now.Add(-5 * time.Minute),
+			CompletedAt: ptrTime(now.Add(-4 * time.Minute)),
+			DurationMs:  ptrInt(60000),
+			RetryCount:  0,
+		},
+		{
+			TaskID:        "task-2",
+			Type:          "process_payment",
+			Status:        "failed",
+			CreatedAt:     now.Add(-10 * time.Minute),
+			CompletedAt:   ptrTime(now.Add(-9 * time.Minute)),
+			DurationMs:    ptrInt(45000),
+			RetryCount:    2,
+			FailureReason: "Payment gateway timeout",
+		},
+		{
+			TaskID:     "task-3",
+			Type:       "send_email",
+			Status:     "pending",
+			CreatedAt:  now.Add(-2 * time.Minute),
+			RetryCount: 0,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/history", nil)
+
+	dash.GetRecentTasks(w, r)
+
+	assert.Equal(t, 200, w.Code)
+
+	var tasks []any
+	err := json.NewDecoder(w.Body).Decode(&tasks)
+	require.NoError(t, err)
+}
+
+func TestGetStatsWithTasksByType(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	for range 3 {
+		tsk := task.NewTask("send_email", map[string]any{}, task.PriorityMedium)
+		err := q.Enqueue(tsk)
+		require.NoError(t, err)
+	}
+
+	for range 2 {
+		tsk := task.NewTask("process_payment", map[string]any{}, task.PriorityHigh)
+		err := q.Enqueue(tsk)
+		require.NoError(t, err)
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
+
+	dash.GetStats(w, r)
+
+	assert.Equal(t, 200, w.Code)
+
+	assert.Equal(t, 5, mockRepo.GetSaveTaskCallCount())
+}
+
+func TestGetStatsWithCompletedTasks(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.TaskStats = []repository.TaskStats{
+		{
+			Type:          "send_email",
+			Status:        "completed",
+			Count:         10,
+			AvgDurationMs: 250.0,
+			MaxDurationMs: 500,
+			MinDurationMs: 100,
+			AvgRetries:    0.2,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
+
+	dash.GetStats(w, r)
+
+	assert.Equal(t, 200, w.Code)
+}
+
+func TestGetRecentTasksWithVariedStatuses(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	now := time.Now()
+
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:      "completed-task",
+			Type:        "test_task",
+			Status:      "completed",
+			CreatedAt:   now.Add(-5 * time.Minute),
+			CompletedAt: ptrTime(now.Add(-4 * time.Minute)),
+			DurationMs:  ptrInt(60000),
+		},
+		{
+			TaskID:    "pending-task",
+			Type:      "test_task",
+			Status:    "pending",
+			CreatedAt: now.Add(-1 * time.Minute),
+		},
+		{
+			TaskID:    "running-task",
+			Type:      "test_task",
+			Status:    "running",
+			CreatedAt: now.Add(-30 * time.Second),
+		},
+		{
+			TaskID:        "failed-task",
+			Type:          "test_task",
+			Status:        "failed",
+			CreatedAt:     now.Add(-10 * time.Minute),
+			CompletedAt:   ptrTime(now.Add(-9 * time.Minute)),
+			DurationMs:    ptrInt(30000),
+			RetryCount:    3,
+			FailureReason: "Max retries exceeded",
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/history", nil)
+
+	dash.GetRecentTasks(w, r)
+
+	assert.Equal(t, 200, w.Code)
+}
+
+func TestGetStatsPerformanceMetrics(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	// Setup performance data
+	mockRepo.TaskStats = []repository.TaskStats{
+		{
+			Type:          "fast_task",
+			Status:        "completed",
+			Count:         100,
+			AvgDurationMs: 50.0,
+			MaxDurationMs: 100,
+			MinDurationMs: 20,
+			AvgRetries:    0.0,
+		},
+		{
+			Type:          "slow_task",
+			Status:        "completed",
+			Count:         50,
+			AvgDurationMs: 5000.0,
+			MaxDurationMs: 10000,
+			MinDurationMs: 2000,
+			AvgRetries:    0.5,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
+
+	dash.GetStats(w, r)
+
+	assert.Equal(t, 200, w.Code)
+
+	var stats map[string]any
+	err := json.NewDecoder(w.Body).Decode(&stats)
+	require.NoError(t, err)
+	assert.NotEmpty(t, stats)
+}
+
+func TestGetRecentTasksOrdering(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	now := time.Now()
+
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:    "newest",
+			Type:      "test",
+			Status:    "pending",
+			CreatedAt: now,
+		},
+		{
+			TaskID:    "middle",
+			Type:      "test",
+			Status:    "completed",
+			CreatedAt: now.Add(-5 * time.Minute),
+		},
+		{
+			TaskID:    "oldest",
+			Type:      "test",
+			Status:    "completed",
+			CreatedAt: now.Add(-10 * time.Minute),
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/history", nil)
+
+	dash.GetRecentTasks(w, r)
+
+	assert.Equal(t, 200, w.Code)
+}
+
+func TestGetStatsWithRetryMetrics(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.TaskStats = []repository.TaskStats{
+		{
+			Type:          "reliable_task",
+			Status:        "completed",
+			Count:         100,
+			AvgDurationMs: 200.0,
+			AvgRetries:    0.1,
+		},
+		{
+			Type:          "flaky_task",
+			Status:        "completed",
+			Count:         50,
+			AvgDurationMs: 300.0,
+			AvgRetries:    2.5,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/stats", nil)
+
+	dash.GetStats(w, r)
+
+	assert.Equal(t, 200, w.Code)
+}
+
+func TestGetRecentTasksWithFailureReasons(t *testing.T) {
+	dash, q, mockRepo, mr := setupTestDashboardWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	now := time.Now()
+
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:        "failed-1",
+			Type:          "test",
+			Status:        "failed",
+			CreatedAt:     now.Add(-5 * time.Minute),
+			CompletedAt:   ptrTime(now.Add(-4 * time.Minute)),
+			RetryCount:    3,
+			FailureReason: "Database connection timeout",
+		},
+		{
+			TaskID:        "failed-2",
+			Type:          "test",
+			Status:        "dead_letter",
+			CreatedAt:     now.Add(-10 * time.Minute),
+			CompletedAt:   ptrTime(now.Add(-9 * time.Minute)),
+			RetryCount:    5,
+			FailureReason: "Max retries exceeded: Invalid credentials",
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dashboard/history", nil)
+
+	dash.GetRecentTasks(w, r)
+
+	assert.Equal(t, 200, w.Code)
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}
+
+func ptrInt(i int) *int {
+	return &i
 }

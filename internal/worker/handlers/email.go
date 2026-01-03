@@ -9,23 +9,23 @@ import (
 	"log"
 	"os"
 
-	"github.com/nadmax/nexq/internal/queue"
+	"github.com/nadmax/nexq/internal/task"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
-func SendEmailHandler(task *queue.Task) error {
-	to, ok := task.Payload["to"].(string)
+func SendEmailHandler(t *task.Task) error {
+	to, ok := t.Payload["to"].(string)
 	if !ok {
 		return errors.New("missing 'to' field")
 	}
 
-	subject, ok := task.Payload["subject"].(string)
+	subject, ok := t.Payload["subject"].(string)
 	if !ok {
 		return errors.New("missing 'subject' field")
 	}
 
-	body, ok := task.Payload["body"].(string)
+	body, ok := t.Payload["body"].(string)
 	if !ok {
 		return errors.New("missing 'body' field")
 	}

@@ -4,18 +4,22 @@ package queue
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
+	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/task"
 	"github.com/redis/go-redis/v9"
 )
 
 type Queue struct {
 	client *redis.Client
+	repo   repository.TaskRepository
 	ctx    context.Context
 }
 
-func NewQueue(redisAddr string) (*Queue, error) {
+func NewQueue(redisAddr string, repo repository.TaskRepository) (*Queue, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
@@ -27,12 +31,20 @@ func NewQueue(redisAddr string) (*Queue, error) {
 
 	return &Queue{
 		client: client,
+		repo:   repo,
 		ctx:    ctx,
 	}, nil
 }
 
-func (q *Queue) Enqueue(task *Task) error {
-	data, err := task.ToJSON()
+func (q *Queue) Enqueue(t *task.Task) error {
+	if q.repo != nil {
+		t.Status = task.StatusPending
+		if err := q.repo.SaveTask(q.ctx, t); err != nil {
+			log.Printf("Warning: failed to save task in database: %v", err)
+		}
+	}
+
+	data, err := t.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -45,7 +57,7 @@ func (q *Queue) Enqueue(task *Task) error {
 	if err := q.client.Set(
 		q.ctx,
 		fmt.Sprintf("queue:item:%d", seq),
-		task.ID,
+		t.ID,
 		0,
 	).Err(); err != nil {
 		return err
@@ -53,13 +65,13 @@ func (q *Queue) Enqueue(task *Task) error {
 
 	return q.client.Set(
 		q.ctx,
-		"task:"+task.ID,
+		"task:"+t.ID,
 		data,
 		0,
 	).Err()
 }
 
-func (q *Queue) Dequeue() (*Task, error) {
+func (q *Queue) Dequeue() (*task.Task, error) {
 	headStr, _ := q.client.Get(q.ctx, "queue:head").Result()
 	tailStr, _ := q.client.Get(q.ctx, "queue:tail").Result()
 	head := int64(0)
@@ -90,16 +102,50 @@ func (q *Queue) Dequeue() (*Task, error) {
 		return nil, err
 	}
 
+	t, err := task.TaskFromJSON(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if q.repo != nil {
+		t.Status = task.StatusRunning
+		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.StatusRunning, ""); err != nil {
+			log.Printf("Warning: failed to update task status: %v", err)
+		}
+	}
+
 	q.client.Del(q.ctx, itemKey)
 	q.client.Del(q.ctx, "task:"+taskID)
 
-	return TaskFromJSON(data)
+	return t, nil
 }
 
-func (q *Queue) UpdateTask(task *Task) error {
+func (q *Queue) CompleteTask(taskID string, durationMs int) error {
+	if q.repo != nil {
+		return q.repo.CompleteTask(q.ctx, taskID, durationMs)
+	}
+
+	return nil
+}
+
+func (q *Queue) FailTask(taskID string, reason string, durationMs int) error {
+	if q.repo != nil {
+		return q.repo.FailTask(q.ctx, taskID, reason, durationMs)
+	}
+
+	return nil
+}
+
+func (q *Queue) UpdateTask(task *task.Task) error {
 	data, err := task.ToJSON()
 	if err != nil {
 		return err
+	}
+
+	if q.repo != nil {
+		if err := q.repo.SaveTask(q.ctx, task); err != nil {
+			log.Printf("Warning: failed to update task in database: %v", err)
+		}
 	}
 
 	return q.client.Set(
@@ -110,7 +156,7 @@ func (q *Queue) UpdateTask(task *Task) error {
 	).Err()
 }
 
-func (q *Queue) GetTask(taskID string) (*Task, error) {
+func (q *Queue) GetTask(taskID string) (*task.Task, error) {
 	data, err := q.client.Get(
 		q.ctx,
 		"task:"+taskID,
@@ -119,11 +165,11 @@ func (q *Queue) GetTask(taskID string) (*Task, error) {
 		return nil, err
 	}
 
-	return TaskFromJSON(data)
+	return task.TaskFromJSON(data)
 }
 
-func (q *Queue) GetAllTasks() ([]*Task, error) {
-	var tasks []*Task
+func (q *Queue) GetAllTasks() ([]*task.Task, error) {
+	var tasks []*task.Task
 
 	iter := q.client.Scan(q.ctx, 0, "task:*", 100).Iterator()
 	for iter.Next(q.ctx) {
@@ -134,7 +180,7 @@ func (q *Queue) GetAllTasks() ([]*Task, error) {
 			continue
 		}
 
-		task, err := TaskFromJSON(data)
+		task, err := task.TaskFromJSON(data)
 		if err != nil {
 			continue
 		}
@@ -149,11 +195,18 @@ func (q *Queue) GetAllTasks() ([]*Task, error) {
 	return tasks, nil
 }
 
-func (q *Queue) MoveToDeadLetter(task *Task, reason string) error {
-	task.FailureReason = reason
-	task.MoveToDLQAt = time.Now()
+func (q *Queue) MoveToDeadLetter(t *task.Task, reason string) error {
+	t.FailureReason = reason
+	t.MoveToDLQAt = time.Now()
+	t.Status = task.StatusDeadLetter
 
-	data, err := task.ToJSON()
+	if q.repo != nil {
+		if err := q.repo.MoveTaskToDLQ(q.ctx, t.ID, reason); err != nil {
+			log.Printf("Warning: failed to move task to DLQ in database: %v", err)
+		}
+	}
+
+	data, err := t.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -166,7 +219,7 @@ func (q *Queue) MoveToDeadLetter(task *Task, reason string) error {
 	if err := q.client.Set(
 		q.ctx,
 		fmt.Sprintf("dlq:item:%d", seq),
-		task.ID,
+		t.ID,
 		0,
 	).Err(); err != nil {
 		return err
@@ -174,14 +227,14 @@ func (q *Queue) MoveToDeadLetter(task *Task, reason string) error {
 
 	return q.client.Set(
 		q.ctx,
-		"dlq:task:"+task.ID,
+		"dlq:task:"+t.ID,
 		data,
 		0,
 	).Err()
 }
 
-func (q *Queue) GetDeadLetterTasks() ([]*Task, error) {
-	var tasks []*Task
+func (q *Queue) GetDeadLetterTasks() ([]*task.Task, error) {
+	var tasks []*task.Task
 
 	iter := q.client.Scan(q.ctx, 0, "dlq:task:*", 100).Iterator()
 	for iter.Next(q.ctx) {
@@ -192,12 +245,12 @@ func (q *Queue) GetDeadLetterTasks() ([]*Task, error) {
 			continue
 		}
 
-		task, err := TaskFromJSON(data)
+		t, err := task.TaskFromJSON(data)
 		if err != nil {
 			continue
 		}
 
-		tasks = append(tasks, task)
+		tasks = append(tasks, t)
 	}
 
 	if err := iter.Err(); err != nil {
@@ -207,7 +260,7 @@ func (q *Queue) GetDeadLetterTasks() ([]*Task, error) {
 	return tasks, nil
 }
 
-func (q *Queue) GetDeadLetterTask(taskID string) (*Task, error) {
+func (q *Queue) GetDeadLetterTask(taskID string) (*task.Task, error) {
 	data, err := q.client.Get(
 		q.ctx,
 		"dlq:task:"+taskID,
@@ -216,7 +269,7 @@ func (q *Queue) GetDeadLetterTask(taskID string) (*Task, error) {
 		return nil, err
 	}
 
-	return TaskFromJSON(data)
+	return task.TaskFromJSON(data)
 }
 
 func (q *Queue) RetryDeadLetterTask(taskID string) error {
@@ -225,17 +278,18 @@ func (q *Queue) RetryDeadLetterTask(taskID string) error {
 		return err
 	}
 
-	task, err := TaskFromJSON(data)
+	t, err := task.TaskFromJSON(data)
 	if err != nil {
 		return err
 	}
 
-	task.RetryCount = 0
-	task.FailureReason = ""
-	task.MoveToDLQAt = time.Time{}
-	task.ScheduledAt = time.Now()
+	t.RetryCount = 0
+	t.FailureReason = ""
+	t.MoveToDLQAt = time.Time{}
+	t.ScheduledAt = time.Now()
+	t.Status = task.StatusPending
 
-	if err := q.Enqueue(task); err != nil {
+	if err := q.Enqueue(t); err != nil {
 		return err
 	}
 
@@ -265,6 +319,26 @@ func (q *Queue) GetDeadLetterStats() (map[string]any, error) {
 	return map[string]any{
 		"total_tasks": count,
 	}, nil
+}
+
+func (q *Queue) IncrementRetryCount(taskID string) error {
+	if q.repo != nil {
+		return q.repo.IncrementRetryCount(q.ctx, taskID)
+	}
+
+	return nil
+}
+
+func (q *Queue) LogExecution(taskID string, attemptNumber int, status string, durationMs int, errorMsg string, workerID string) error {
+	if q.repo != nil {
+		return q.repo.LogExecution(q.ctx, taskID, attemptNumber, status, durationMs, errorMsg, workerID)
+	}
+
+	return nil
+}
+
+func (q *Queue) GetRepository() repository.TaskRepository {
+	return q.repo
 }
 
 func (q *Queue) Close() error {
