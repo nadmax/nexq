@@ -13,7 +13,7 @@ type TaskRepository interface {
 	FailTask(ctx context.Context, taskID string, reason string, durationMs int) error
 	MoveTaskToDLQ(ctx context.Context, taskID string, reason string) error
 	IncrementRetryCount(ctx context.Context, taskID string) error
-	LogExecution(ctx context.Context, taskID string, attemptNumber int, status string, durationMs int, errorMsg string, workerID string) error
+	LogExecution(ctx context.Context, taskID string, attemptNumber int, status string, durationMs int, msgErr string, workerID string) error
 	GetTaskStats(ctx context.Context, hours int) ([]TaskStats, error)
 	GetRecentTasks(ctx context.Context, limit int) ([]RecentTask, error)
 	GetTasksByType(ctx context.Context, taskType string, limit int) ([]RecentTask, error)

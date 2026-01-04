@@ -1,11 +1,11 @@
 const API_URL = '/api';
-const exampleCode = [
+const codeExample = [
     { to: "user@example.com", subject: "Hello from Nexq", body: "This is a custom email!" },
     { report_type: "task_summary", start_time: "2026-01-01T00:00:00Z", end_time: "2026-01-04T23:59:59Z", format: "csv", output_path: "./reports", schedule_in: 3600 },
     { image_url: "https://example.com/image.jpg", operations: ["resize", "compress"] }
 ];
 let editor;
-let exampleEditors = [];
+let editorsExample = [];
 
 require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs' } });
 require(['vs/editor/editor.main'], function () {
@@ -29,7 +29,7 @@ require(['vs/editor/editor.main'], function () {
         autoClosingBrackets: 'always',
         renderLineHighlight: 'none'
     });
-    exampleCode.forEach((code, i) => {
+    codeExample.forEach((code, i) => {
         const exampleEditor = monaco.editor.create(document.getElementById(`example-${i}`), {
             value: JSON.stringify(code, null, 2),
             language: 'json',
@@ -49,7 +49,7 @@ require(['vs/editor/editor.main'], function () {
                 horizontal: 'hidden'
             }
         });
-        exampleEditors.push(exampleEditor);
+        editorsExample.push(exampleEditor);
     });
 });
 
@@ -72,7 +72,7 @@ function switchTab(tabName, element) {
 }
 
 function copyCode(button, index) {
-    const code = exampleEditors[index].getValue();
+    const code = editorsExample[index].getValue();
 
     navigator.clipboard.writeText(code).then(() => {
         button.textContent = 'Copied!';

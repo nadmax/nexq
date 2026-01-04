@@ -120,7 +120,7 @@ func (m *MockPostgresRepository) CompleteTask(ctx context.Context, taskID string
 	}
 
 	if t, exists := m.Tasks[taskID]; exists {
-		t.Status = task.StatusCompleted
+		t.Status = task.CompletedStatus
 	}
 
 	return nil
@@ -141,7 +141,7 @@ func (m *MockPostgresRepository) FailTask(ctx context.Context, taskID string, re
 	}
 
 	if t, exists := m.Tasks[taskID]; exists {
-		t.Status = task.StatusFailed
+		t.Status = task.FailedStatus
 		t.FailureReason = reason
 	}
 
@@ -162,7 +162,7 @@ func (m *MockPostgresRepository) MoveTaskToDLQ(ctx context.Context, taskID strin
 	}
 
 	if t, exists := m.Tasks[taskID]; exists {
-		t.Status = task.StatusDeadLetter
+		t.Status = task.DeadLetterStatus
 		t.FailureReason = reason
 	}
 

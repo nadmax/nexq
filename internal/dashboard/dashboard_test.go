@@ -79,20 +79,20 @@ func TestGetStats_WithTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	pending := task.NewTask("pending_task", nil, task.PriorityMedium)
-	pending.Status = task.StatusPending
+	pending := task.NewTask("pending_task", nil, task.MediumPriority)
+	pending.Status = task.PendingStatus
 	require.NoError(t, q.Enqueue(pending))
 	require.NoError(t, q.UpdateTask(pending))
 
-	running := task.NewTask("running_task", nil, task.PriorityMedium)
-	running.Status = task.StatusRunning
+	running := task.NewTask("running_task", nil, task.MediumPriority)
+	running.Status = task.RunningStatus
 	now := time.Now()
 	running.StartedAt = &now
 	require.NoError(t, q.Enqueue(running))
 	require.NoError(t, q.UpdateTask(running))
 
-	completed := task.NewTask("completed_task", nil, task.PriorityMedium)
-	completed.Status = task.StatusCompleted
+	completed := task.NewTask("completed_task", nil, task.MediumPriority)
+	completed.Status = task.CompletedStatus
 	startTime := time.Now().Add(-2 * time.Second)
 	completedTime := time.Now()
 	completed.StartedAt = &startTime
@@ -100,8 +100,8 @@ func TestGetStats_WithTasks(t *testing.T) {
 	require.NoError(t, q.Enqueue(completed))
 	require.NoError(t, q.UpdateTask(completed))
 
-	failed := task.NewTask("failed_task", nil, task.PriorityMedium)
-	failed.Status = task.StatusFailed
+	failed := task.NewTask("failed_task", nil, task.MediumPriority)
+	failed.Status = task.FailedStatus
 	require.NoError(t, q.Enqueue(failed))
 	require.NoError(t, q.UpdateTask(failed))
 
@@ -127,12 +127,12 @@ func TestGetStats_TasksByType(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	email1 := task.NewTask("send_email", map[string]any{"to": "user1@test.com"}, task.PriorityMedium)
-	email2 := task.NewTask("send_email", map[string]any{"to": "user2@test.com"}, task.PriorityMedium)
-	email3 := task.NewTask("send_email", map[string]any{"to": "user3@test.com"}, task.PriorityMedium)
-	image1 := task.NewTask("process_image", map[string]any{"url": "img1.jpg"}, task.PriorityMedium)
-	image2 := task.NewTask("process_image", map[string]any{"url": "img2.jpg"}, task.PriorityMedium)
-	report := task.NewTask("generate_report", map[string]any{"type": "monthly"}, task.PriorityMedium)
+	email1 := task.NewTask("send_email", map[string]any{"to": "user1@test.com"}, task.MediumPriority)
+	email2 := task.NewTask("send_email", map[string]any{"to": "user2@test.com"}, task.MediumPriority)
+	email3 := task.NewTask("send_email", map[string]any{"to": "user3@test.com"}, task.MediumPriority)
+	image1 := task.NewTask("process_image", map[string]any{"url": "img1.jpg"}, task.MediumPriority)
+	image2 := task.NewTask("process_image", map[string]any{"url": "img2.jpg"}, task.MediumPriority)
+	report := task.NewTask("generate_report", map[string]any{"type": "monthly"}, task.MediumPriority)
 
 	require.NoError(t, q.Enqueue(email1))
 	require.NoError(t, q.Enqueue(email2))
@@ -160,19 +160,19 @@ func TestGetStats_AverageWaitTime(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := task.NewTask("test1", nil, task.PriorityMedium)
+	task1 := task.NewTask("test1", nil, task.MediumPriority)
 	task1.CreatedAt = time.Now().Add(-10 * time.Second)
 	startTime1 := time.Now().Add(-5 * time.Second)
 	task1.StartedAt = &startTime1
-	task1.Status = task.StatusCompleted
+	task1.Status = task.CompletedStatus
 	require.NoError(t, q.Enqueue(task1))
 	require.NoError(t, q.UpdateTask(task1))
 
-	task2 := task.NewTask("test2", nil, task.PriorityMedium)
+	task2 := task.NewTask("test2", nil, task.MediumPriority)
 	task2.CreatedAt = time.Now().Add(-8 * time.Second)
 	startTime2 := time.Now().Add(-3 * time.Second)
 	task2.StartedAt = &startTime2
-	task2.Status = task.StatusCompleted
+	task2.Status = task.CompletedStatus
 	require.NoError(t, q.Enqueue(task2))
 	require.NoError(t, q.UpdateTask(task2))
 
@@ -193,13 +193,13 @@ func TestGetStats_NoStartedTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := task.NewTask("pending1", nil, task.PriorityMedium)
-	task1.Status = task.StatusPending
+	task1 := task.NewTask("pending1", nil, task.MediumPriority)
+	task1.Status = task.PendingStatus
 	require.NoError(t, q.Enqueue(task1))
 	require.NoError(t, q.UpdateTask(task1))
 
-	task2 := task.NewTask("pending2", nil, task.PriorityMedium)
-	task2.Status = task.StatusPending
+	task2 := task.NewTask("pending2", nil, task.MediumPriority)
+	task2.Status = task.PendingStatus
 	require.NoError(t, q.Enqueue(task2))
 	require.NoError(t, q.UpdateTask(task2))
 
@@ -240,8 +240,8 @@ func TestGetRecentTasks_WithCompletedTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("completed_task", map[string]any{"data": "test"}, task.PriorityMedium)
-	tsk.Status = task.StatusCompleted
+	tsk := task.NewTask("completed_task", map[string]any{"data": "test"}, task.MediumPriority)
+	tsk.Status = task.CompletedStatus
 	startTime := time.Now().Add(-5 * time.Second)
 	completedTime := time.Now()
 	tsk.StartedAt = &startTime
@@ -271,25 +271,25 @@ func TestGetRecentTasks_OnlyCompletedOrFailed(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	pending := task.NewTask("pending", nil, task.PriorityMedium)
-	pending.Status = task.StatusPending
+	pending := task.NewTask("pending", nil, task.MediumPriority)
+	pending.Status = task.PendingStatus
 	require.NoError(t, q.Enqueue(pending))
 	require.NoError(t, q.UpdateTask(pending))
 
-	running := task.NewTask("running", nil, task.PriorityMedium)
-	running.Status = task.StatusRunning
+	running := task.NewTask("running", nil, task.MediumPriority)
+	running.Status = task.RunningStatus
 	require.NoError(t, q.Enqueue(running))
 	require.NoError(t, q.UpdateTask(running))
 
-	completed := task.NewTask("completed", nil, task.PriorityMedium)
-	completed.Status = task.StatusCompleted
+	completed := task.NewTask("completed", nil, task.MediumPriority)
+	completed.Status = task.CompletedStatus
 	now := time.Now()
 	completed.CompletedAt = &now
 	require.NoError(t, q.Enqueue(completed))
 	require.NoError(t, q.UpdateTask(completed))
 
-	failed := task.NewTask("failed", nil, task.PriorityMedium)
-	failed.Status = task.StatusFailed
+	failed := task.NewTask("failed", nil, task.MediumPriority)
+	failed.Status = task.FailedStatus
 	failed.CompletedAt = &now
 	require.NoError(t, q.Enqueue(failed))
 	require.NoError(t, q.UpdateTask(failed))
@@ -316,22 +316,22 @@ func TestGetRecentTasks_Last24HoursOnly(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	old := task.NewTask("old_task", nil, task.PriorityMedium)
-	old.Status = task.StatusCompleted
+	old := task.NewTask("old_task", nil, task.MediumPriority)
+	old.Status = task.CompletedStatus
 	oldTime := time.Now().Add(-25 * time.Hour)
 	old.CompletedAt = &oldTime
 	require.NoError(t, q.Enqueue(old))
 	require.NoError(t, q.UpdateTask(old))
 
-	recent := task.NewTask("recent_task", nil, task.PriorityMedium)
-	recent.Status = task.StatusCompleted
+	recent := task.NewTask("recent_task", nil, task.MediumPriority)
+	recent.Status = task.CompletedStatus
 	recentTime := time.Now().Add(-1 * time.Hour)
 	recent.CompletedAt = &recentTime
 	require.NoError(t, q.Enqueue(recent))
 	require.NoError(t, q.UpdateTask(recent))
 
-	veryRecent := task.NewTask("very_recent", nil, task.PriorityMedium)
-	veryRecent.Status = task.StatusCompleted
+	veryRecent := task.NewTask("very_recent", nil, task.MediumPriority)
+	veryRecent.Status = task.CompletedStatus
 	now := time.Now()
 	veryRecent.CompletedAt = &now
 	require.NoError(t, q.Enqueue(veryRecent))
@@ -358,8 +358,8 @@ func TestGetRecentTasks_WithDuration(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("timed_task", nil, task.PriorityMedium)
-	tsk.Status = task.StatusCompleted
+	tsk := task.NewTask("timed_task", nil, task.MediumPriority)
+	tsk.Status = task.CompletedStatus
 	tsk.CreatedAt = time.Now().Add(-10 * time.Second)
 	startTime := time.Now().Add(-8 * time.Second)
 	completedTime := time.Now().Add(-3 * time.Second)
@@ -386,8 +386,8 @@ func TestGetRecentTasks_NoDuration_WhenNotStarted(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("no_start", nil, task.PriorityMedium)
-	tsk.Status = task.StatusCompleted
+	tsk := task.NewTask("no_start", nil, task.MediumPriority)
+	tsk.Status = task.CompletedStatus
 	now := time.Now()
 	tsk.CompletedAt = &now
 	require.NoError(t, q.Enqueue(tsk))
@@ -413,8 +413,8 @@ func TestGetRecentTasks_MultipleTasks(t *testing.T) {
 	now := time.Now()
 
 	for i := 1; i <= 5; i++ {
-		tsk := task.NewTask("task", map[string]any{"id": i}, task.PriorityMedium)
-		tsk.Status = task.StatusCompleted
+		tsk := task.NewTask("task", map[string]any{"id": i}, task.MediumPriority)
+		tsk.Status = task.CompletedStatus
 		completedTime := now.Add(-time.Duration(i) * time.Hour)
 		tsk.CompletedAt = &completedTime
 		require.NoError(t, q.Enqueue(tsk))
@@ -432,7 +432,7 @@ func TestGetRecentTasks_MultipleTasks(t *testing.T) {
 	assert.Len(t, history, 5)
 
 	for _, h := range history {
-		assert.Equal(t, task.StatusCompleted, h.Status)
+		assert.Equal(t, task.CompletedStatus, h.Status)
 		assert.NotEmpty(t, h.TaskID)
 		assert.NotZero(t, h.CreatedAt)
 	}
@@ -444,29 +444,29 @@ func TestGetStats_MixedStatusCounts(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	for range 10 {
-		tsk := task.NewTask("pending", nil, task.PriorityMedium)
-		tsk.Status = task.StatusPending
+		tsk := task.NewTask("pending", nil, task.MediumPriority)
+		tsk.Status = task.PendingStatus
 		require.NoError(t, q.Enqueue(tsk))
 		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 5 {
-		tsk := task.NewTask("running", nil, task.PriorityMedium)
-		tsk.Status = task.StatusRunning
+		tsk := task.NewTask("running", nil, task.MediumPriority)
+		tsk.Status = task.RunningStatus
 		require.NoError(t, q.Enqueue(tsk))
 		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 3 {
-		tsk := task.NewTask("completed", nil, task.PriorityMedium)
-		tsk.Status = task.StatusCompleted
+		tsk := task.NewTask("completed", nil, task.MediumPriority)
+		tsk.Status = task.CompletedStatus
 		require.NoError(t, q.Enqueue(tsk))
 		require.NoError(t, q.UpdateTask(tsk))
 	}
 
 	for range 2 {
-		tsk := task.NewTask("failed", nil, task.PriorityMedium)
-		tsk.Status = task.StatusFailed
+		tsk := task.NewTask("failed", nil, task.MediumPriority)
+		tsk.Status = task.FailedStatus
 		require.NoError(t, q.Enqueue(tsk))
 		require.NoError(t, q.UpdateTask(tsk))
 	}
@@ -586,13 +586,13 @@ func TestGetStatsWithTasksByType(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	for range 3 {
-		tsk := task.NewTask("send_email", map[string]any{}, task.PriorityMedium)
+		tsk := task.NewTask("send_email", map[string]any{}, task.MediumPriority)
 		err := q.Enqueue(tsk)
 		require.NoError(t, err)
 	}
 
 	for range 2 {
-		tsk := task.NewTask("process_payment", map[string]any{}, task.PriorityHigh)
+		tsk := task.NewTask("process_payment", map[string]any{}, task.HighPriority)
 		err := q.Enqueue(tsk)
 		require.NoError(t, err)
 	}

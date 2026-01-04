@@ -75,7 +75,7 @@ func TestProcessTask_Success(t *testing.T) {
 		return nil
 	})
 
-	tsk := task.NewTask("test_task", nil, task.PriorityMedium)
+	tsk := task.NewTask("test_task", nil, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestProcessTask_Success(t *testing.T) {
 	assert.True(t, executed)
 
 	updated, _ := q.GetTask(tsk.ID)
-	assert.Equal(t, task.StatusCompleted, updated.Status)
+	assert.Equal(t, task.CompletedStatus, updated.Status)
 	assert.NotNil(t, updated.CompletedAt)
 }
 
@@ -97,7 +97,7 @@ func TestProcessTask_Failure(t *testing.T) {
 		return errors.New("task failed")
 	})
 
-	tsk := task.NewTask("test_task", nil, task.PriorityMedium)
+	tsk := task.NewTask("test_task", nil, task.MediumPriority)
 	tsk.MaxRetries = 1
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
@@ -117,7 +117,7 @@ func TestProcessTask_MaxRetriesExceeded(t *testing.T) {
 		return errors.New("task failed")
 	})
 
-	tsk := task.NewTask("test_task", nil, task.PriorityMedium)
+	tsk := task.NewTask("test_task", nil, task.MediumPriority)
 	tsk.MaxRetries = 2
 	tsk.RetryCount = 2
 	err := q.Enqueue(tsk)
@@ -126,7 +126,7 @@ func TestProcessTask_MaxRetriesExceeded(t *testing.T) {
 	w.processTask(tsk)
 
 	updated, _ := q.GetTask(tsk.ID)
-	assert.Equal(t, task.StatusFailed, updated.Status)
+	assert.Equal(t, task.FailedStatus, updated.Status)
 	assert.Contains(t, updated.Error, "task failed")
 }
 
@@ -135,14 +135,14 @@ func TestProcessTask_NoHandler(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("unknown_task", nil, task.PriorityMedium)
+	tsk := task.NewTask("unknown_task", nil, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 
 	w.processTask(tsk)
 
 	updated, _ := q.GetTask(tsk.ID)
-	assert.Equal(t, task.StatusPending, updated.Status)
+	assert.Equal(t, task.PendingStatus, updated.Status)
 	assert.Contains(t, updated.Error, "no handler")
 }
 
@@ -163,7 +163,7 @@ func TestWorkerStartStop(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	tsk := task.NewTask("test_task", nil, task.PriorityMedium)
+	tsk := task.NewTask("test_task", nil, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 
@@ -189,7 +189,7 @@ func TestWorkerProcessMultipleTasks(t *testing.T) {
 	})
 
 	for range 5 {
-		tsk := task.NewTask("test_task", nil, task.PriorityMedium)
+		tsk := task.NewTask("test_task", nil, task.MediumPriority)
 		_ = q.Enqueue(tsk)
 	}
 
@@ -213,7 +213,7 @@ func TestWorkerProcessTaskSuccessWithHistory(t *testing.T) {
 		return nil
 	})
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -228,9 +228,9 @@ func TestWorkerProcessTaskSuccessWithHistory(t *testing.T) {
 	execLogs := mockRepo.GetExecutionLogForTask(tsk.ID)
 	assert.Len(t, execLogs, 2, "Should have start and completion logs")
 
-	assert.Equal(t, string(task.StatusRunning), execLogs[0].Status)
+	assert.Equal(t, string(task.RunningStatus), execLogs[0].Status)
 	assert.Equal(t, "test-worker", execLogs[0].WorkerID)
-	assert.Equal(t, string(task.StatusCompleted), execLogs[1].Status)
+	assert.Equal(t, string(task.CompletedStatus), execLogs[1].Status)
 	assert.Greater(t, execLogs[1].DurationMs, 0, "Duration should be recorded")
 	assert.Equal(t, 1, mockRepo.GetCompleteTaskCallCount())
 }
@@ -244,7 +244,7 @@ func TestWorkerProcessTaskFailureWithRetry(t *testing.T) {
 		return errors.New("task failed")
 	})
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	tsk.MaxRetries = 3
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestWorkerProcessTaskFailureWithRetry(t *testing.T) {
 	execLogs := mockRepo.GetExecutionLogForTask(tsk.ID)
 	assert.Len(t, execLogs, 2, "Should have start and failure logs")
 
-	assert.Equal(t, string(task.StatusFailed), execLogs[1].Status)
+	assert.Equal(t, string(task.FailedStatus), execLogs[1].Status)
 	assert.Equal(t, "task failed", execLogs[1].ErrorMsg)
 	assert.Equal(t, 1, mockRepo.GetFailTaskCallCount())
 	assert.Equal(t, 1, mockRepo.GetIncrementRetryCallCount())
@@ -273,7 +273,7 @@ func TestWorkerProcessTaskFailurePermanent(t *testing.T) {
 		return errors.New("permanent failure")
 	})
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	tsk.MaxRetries = 1
 	tsk.RetryCount = 0
 	err := q.Enqueue(tsk)
@@ -293,7 +293,7 @@ func TestWorkerProcessTaskNoHandler(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("unknown_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("unknown_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -323,7 +323,7 @@ func TestWorkerMultipleTasks(t *testing.T) {
 	})
 
 	for i := range 5 {
-		tsk := task.NewTask("test_task", map[string]any{"index": i}, task.PriorityMedium)
+		tsk := task.NewTask("test_task", map[string]any{"index": i}, task.MediumPriority)
 		err := q.Enqueue(tsk)
 		require.NoError(t, err)
 	}
@@ -351,7 +351,7 @@ func TestWorkerExecutionDurationTracking(t *testing.T) {
 		return nil
 	})
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -376,7 +376,7 @@ func TestWorkerIDTracking(t *testing.T) {
 		return nil
 	})
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 

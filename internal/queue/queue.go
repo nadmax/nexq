@@ -38,7 +38,7 @@ func NewQueue(redisAddr string, repo repository.TaskRepository) (*Queue, error) 
 
 func (q *Queue) Enqueue(t *task.Task) error {
 	if q.repo != nil {
-		t.Status = task.StatusPending
+		t.Status = task.PendingStatus
 		if err := q.repo.SaveTask(q.ctx, t); err != nil {
 			log.Printf("Warning: failed to save task in database: %v", err)
 		}
@@ -108,8 +108,8 @@ func (q *Queue) Dequeue() (*task.Task, error) {
 	}
 
 	if q.repo != nil {
-		t.Status = task.StatusRunning
-		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.StatusRunning, ""); err != nil {
+		t.Status = task.RunningStatus
+		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.RunningStatus, ""); err != nil {
 			log.Printf("Warning: failed to update task status: %v", err)
 		}
 	}
@@ -198,7 +198,7 @@ func (q *Queue) GetAllTasks() ([]*task.Task, error) {
 func (q *Queue) MoveToDeadLetter(t *task.Task, reason string) error {
 	t.FailureReason = reason
 	t.MoveToDLQAt = time.Now()
-	t.Status = task.StatusDeadLetter
+	t.Status = task.DeadLetterStatus
 
 	if q.repo != nil {
 		if err := q.repo.MoveTaskToDLQ(q.ctx, t.ID, reason); err != nil {
@@ -287,7 +287,7 @@ func (q *Queue) RetryDeadLetterTask(taskID string) error {
 	t.FailureReason = ""
 	t.MoveToDLQAt = time.Time{}
 	t.ScheduledAt = time.Now()
-	t.Status = task.StatusPending
+	t.Status = task.PendingStatus
 
 	if err := q.Enqueue(t); err != nil {
 		return err
