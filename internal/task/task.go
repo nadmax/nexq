@@ -26,7 +26,7 @@ type (
 		CompletedAt   *time.Time     `json:"completed_at,omitempty"`
 		Error         string         `json:"error,omitempty"`
 		FailureReason string         `json:"failure_reason,omitempty"`
-		MoveToDLQAt   time.Time      `json:"moved_to_dlq_at,omitempty"`
+		MoveToDLQAt   *time.Time     `json:"moved_to_dlq_at,omitempty"`
 	}
 )
 

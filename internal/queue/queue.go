@@ -197,7 +197,8 @@ func (q *Queue) GetAllTasks() ([]*task.Task, error) {
 
 func (q *Queue) MoveToDeadLetter(t *task.Task, reason string) error {
 	t.FailureReason = reason
-	t.MoveToDLQAt = time.Now()
+	now := time.Now()
+	t.MoveToDLQAt = &now
 	t.Status = task.DeadLetterStatus
 
 	if q.repo != nil {
@@ -285,7 +286,7 @@ func (q *Queue) RetryDeadLetterTask(taskID string) error {
 
 	t.RetryCount = 0
 	t.FailureReason = ""
-	t.MoveToDLQAt = time.Time{}
+	t.MoveToDLQAt = nil
 	t.ScheduledAt = time.Now()
 	t.Status = task.PendingStatus
 
