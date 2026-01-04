@@ -21,7 +21,7 @@ type API struct {
 	mux   *http.ServeMux
 }
 
-type CreateTaskRequest struct {
+type TaskRequest struct {
 	Type       string             `json:"type"`
 	Payload    map[string]any     `json:"payload"`
 	Priority   *task.TaskPriority `json:"priority"`
@@ -87,7 +87,7 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	var req CreateTaskRequest
+	var req TaskRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		httputil.WriteJSONError(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -98,7 +98,7 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	priority := task.PriorityMedium
+	priority := task.MediumPriority
 	if req.Priority != nil {
 		priority = *req.Priority
 	}

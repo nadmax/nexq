@@ -13,13 +13,13 @@ func TestNewTask(t *testing.T) {
 		"subject": "Test",
 	}
 
-	task := NewTask("send_email", payload, PriorityMedium)
+	task := NewTask("send_email", payload, MediumPriority)
 
 	assert.NotEmpty(t, task.ID)
 	assert.Equal(t, "send_email", task.Type)
 	assert.Equal(t, payload, task.Payload)
-	assert.Equal(t, PriorityMedium, task.Priority)
-	assert.Equal(t, StatusPending, task.Status)
+	assert.Equal(t, MediumPriority, task.Priority)
+	assert.Equal(t, PendingStatus, task.Status)
 	assert.Equal(t, 3, task.MaxRetries)
 	assert.Equal(t, 0, task.RetryCount)
 	assert.False(t, task.CreatedAt.IsZero())
@@ -29,7 +29,7 @@ func TestNewTask(t *testing.T) {
 }
 
 func TestTaskToJSON(t *testing.T) {
-	task := NewTask("test_task", map[string]any{"key": "value"}, PriorityMedium)
+	task := NewTask("test_task", map[string]any{"key": "value"}, MediumPriority)
 
 	jsonStr, err := task.ToJSON()
 
@@ -40,7 +40,7 @@ func TestTaskToJSON(t *testing.T) {
 }
 
 func TestTaskFromJSON(t *testing.T) {
-	original := NewTask("test_task", map[string]any{"key": "value"}, PriorityMedium)
+	original := NewTask("test_task", map[string]any{"key": "value"}, MediumPriority)
 	jsonStr, _ := original.ToJSON()
 
 	restored, err := TaskFromJSON(jsonStr)
@@ -59,16 +59,16 @@ func TestTaskFromJSON_InvalidJSON(t *testing.T) {
 }
 
 func TestTaskStatuses(t *testing.T) {
-	assert.Equal(t, TaskStatus("pending"), StatusPending)
-	assert.Equal(t, TaskStatus("running"), StatusRunning)
-	assert.Equal(t, TaskStatus("completed"), StatusCompleted)
-	assert.Equal(t, TaskStatus("failed"), StatusFailed)
+	assert.Equal(t, TaskStatus("pending"), PendingStatus)
+	assert.Equal(t, TaskStatus("running"), RunningStatus)
+	assert.Equal(t, TaskStatus("completed"), CompletedStatus)
+	assert.Equal(t, TaskStatus("failed"), FailedStatus)
 }
 
 func TestTaskPriorities(t *testing.T) {
-	assert.Equal(t, TaskPriority(0), PriorityLow)
-	assert.Equal(t, TaskPriority(1), PriorityMedium)
-	assert.Equal(t, TaskPriority(2), PriorityHigh)
+	assert.Equal(t, TaskPriority(0), LowPriority)
+	assert.Equal(t, TaskPriority(1), MediumPriority)
+	assert.Equal(t, TaskPriority(2), HighPriority)
 }
 
 func TestTaskJSONRoundTrip(t *testing.T) {
@@ -77,8 +77,8 @@ func TestTaskJSONRoundTrip(t *testing.T) {
 		ID:          "test-123",
 		Type:        "email",
 		Payload:     map[string]any{"to": "test@example.com"},
-		Priority:    PriorityHigh,
-		Status:      StatusRunning,
+		Priority:    HighPriority,
+		Status:      RunningStatus,
 		MaxRetries:  5,
 		RetryCount:  2,
 		CreatedAt:   now,

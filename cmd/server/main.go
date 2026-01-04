@@ -27,8 +27,8 @@ func main() {
 	}
 
 	defer func() {
-		if err := repo.Close(); err != nil {
-			log.Printf("failed to close Postgres repository: %v", err)
+		if repoErr := repo.Close(); repoErr != nil {
+			log.Printf("failed to close Postgres repository: %v", repoErr)
 		}
 	}()
 
@@ -38,8 +38,8 @@ func main() {
 	}
 
 	defer func() {
-		if err := q.Close(); err != nil {
-			log.Printf("failed to close server queue: %v", err)
+		if qErr := q.Close(); qErr != nil {
+			log.Printf("failed to close server queue: %v", qErr)
 		}
 	}()
 

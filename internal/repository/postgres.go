@@ -56,7 +56,7 @@ func NewPostgresTaskRepository(connectionString string) (*PostgresTaskRepository
 }
 
 func (r *PostgresTaskRepository) SaveTask(ctx context.Context, t *task.Task) error {
-	payloadJSON, err := json.Marshal(t.Payload)
+	payload, err := json.Marshal(t.Payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
@@ -85,7 +85,7 @@ func (r *PostgresTaskRepository) SaveTask(ctx context.Context, t *task.Task) err
 		query,
 		t.ID,
 		t.Type,
-		payloadJSON,
+		payload,
 		t.Priority,
 		t.Status,
 		t.RetryCount,
@@ -163,7 +163,7 @@ func (r *PostgresTaskRepository) IncrementRetryCount(ctx context.Context, taskID
 	return err
 }
 
-func (r *PostgresTaskRepository) LogExecution(ctx context.Context, taskID string, attemptNumber int, status string, durationMs int, errorMsg string, workerID string) error {
+func (r *PostgresTaskRepository) LogExecution(ctx context.Context, taskID string, attemptNumber int, status string, durationMs int, msgErr string, workerID string) error {
 	query := `
 		INSERT INTO task_execution_log (
 			task_id, attempt_number, status, completed_at, 
@@ -178,11 +178,11 @@ func (r *PostgresTaskRepository) LogExecution(ctx context.Context, taskID string
 		durationMsVal = durationMs
 	}
 
-	var errorMsgVal any
-	if errorMsg == "" {
-		errorMsgVal = nil
+	var msgErrVal any
+	if msgErr == "" {
+		msgErrVal = nil
 	} else {
-		errorMsgVal = errorMsg
+		msgErrVal = msgErr
 	}
 
 	_, err := r.db.ExecContext(
@@ -192,7 +192,7 @@ func (r *PostgresTaskRepository) LogExecution(ctx context.Context, taskID string
 		attemptNumber,
 		status,
 		durationMsVal,
-		errorMsgVal,
+		msgErrVal,
 		workerID,
 	)
 
@@ -355,7 +355,7 @@ func (r *PostgresTaskRepository) GetTaskHistory(ctx context.Context, taskID stri
 		var status, workerID string
 		var startedAt, completedAt sql.NullTime
 		var durationMs sql.NullInt64
-		var errorMsg sql.NullString
+		var msgErr sql.NullString
 
 		if err := rows.Scan(
 			&attemptNum,
@@ -363,7 +363,7 @@ func (r *PostgresTaskRepository) GetTaskHistory(ctx context.Context, taskID stri
 			&startedAt,
 			&completedAt,
 			&durationMs,
-			&errorMsg,
+			&msgErr,
 			&workerID,
 		); err != nil {
 			return nil, err
@@ -384,8 +384,8 @@ func (r *PostgresTaskRepository) GetTaskHistory(ctx context.Context, taskID stri
 		if durationMs.Valid {
 			entry["duration_ms"] = durationMs.Int64
 		}
-		if errorMsg.Valid {
-			entry["error_message"] = errorMsg.String
+		if msgErr.Valid {
+			entry["error_message"] = msgErr.String
 		}
 
 		history = append(history, entry)

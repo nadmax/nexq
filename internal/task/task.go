@@ -31,17 +31,17 @@ type (
 )
 
 const (
-	StatusPending    TaskStatus = "pending"
-	StatusRunning    TaskStatus = "running"
-	StatusCompleted  TaskStatus = "completed"
-	StatusFailed     TaskStatus = "failed"
-	StatusDeadLetter TaskStatus = "dead_letter"
+	PendingStatus    TaskStatus = "pending"
+	RunningStatus    TaskStatus = "running"
+	CompletedStatus  TaskStatus = "completed"
+	FailedStatus     TaskStatus = "failed"
+	DeadLetterStatus TaskStatus = "dead_letter"
 )
 
 const (
-	PriorityLow TaskPriority = iota
-	PriorityMedium
-	PriorityHigh
+	LowPriority TaskPriority = iota
+	MediumPriority
+	HighPriority
 )
 
 func NewTask(taskType string, payload map[string]any, priority TaskPriority) *Task {
@@ -50,7 +50,7 @@ func NewTask(taskType string, payload map[string]any, priority TaskPriority) *Ta
 		Type:        taskType,
 		Payload:     payload,
 		Priority:    priority,
-		Status:      StatusPending,
+		Status:      PendingStatus,
 		MaxRetries:  3,
 		RetryCount:  0,
 		CreatedAt:   time.Now(),
@@ -68,14 +68,15 @@ func (t *Task) ToJSON() (string, error) {
 }
 
 func (t *Task) ShouldMoveToDeadLetter() bool {
-	return t.RetryCount >= t.MaxRetries && t.Status == StatusFailed
+	return t.RetryCount >= t.MaxRetries && t.Status == FailedStatus
 }
 
 func TaskFromJSON(data string) (*Task, error) {
-	var task Task
-	if err := json.Unmarshal([]byte(data), &task); err != nil {
+	var t Task
+
+	if err := json.Unmarshal([]byte(data), &t); err != nil {
 		return nil, err
 	}
 
-	return &task, nil
+	return &t, nil
 }

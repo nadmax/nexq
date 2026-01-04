@@ -51,7 +51,7 @@ func TestEnqueue(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 
 	assert.NoError(t, err)
@@ -62,7 +62,7 @@ func TestEnqueueWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func TestEnqueueWithRepository(t *testing.T) {
 
 	status, exists := mockRepo.GetTaskStatus(tsk.ID)
 	assert.True(t, exists)
-	assert.Equal(t, task.StatusPending, status)
+	assert.Equal(t, task.PendingStatus, status)
 }
 
 func TestEnqueueAndDequeue(t *testing.T) {
@@ -79,7 +79,7 @@ func TestEnqueueAndDequeue(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	original := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	original := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(original)
 	require.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestDequeueWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestDequeueWithRepository(t *testing.T) {
 
 	assert.Equal(t, 1, mockRepo.GetUpdateTaskStatusCallCount())
 	status, _ := mockRepo.GetTaskStatus(tsk.ID)
-	assert.Equal(t, task.StatusRunning, status)
+	assert.Equal(t, task.RunningStatus, status)
 }
 
 func TestPriorityOrdering(t *testing.T) {
@@ -126,9 +126,9 @@ func TestPriorityOrdering(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	lowPriorityTask := task.NewTask("low", nil, task.PriorityLow)
-	mediumPriorityTask := task.NewTask("medium", nil, task.PriorityMedium)
-	highPriorityTask := task.NewTask("high", nil, task.PriorityHigh)
+	lowPriorityTask := task.NewTask("low", nil, task.LowPriority)
+	mediumPriorityTask := task.NewTask("medium", nil, task.MediumPriority)
+	highPriorityTask := task.NewTask("high", nil, task.HighPriority)
 
 	err := q.Enqueue(highPriorityTask)
 	assert.NoError(t, err)
@@ -155,10 +155,10 @@ func TestScheduledTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	futureTask := task.NewTask("future", nil, task.PriorityLow)
+	futureTask := task.NewTask("future", nil, task.LowPriority)
 	futureTask.ScheduledAt = time.Now().Add(10 * time.Second)
 
-	nowTask := task.NewTask("now", nil, task.PriorityMedium)
+	nowTask := task.NewTask("now", nil, task.MediumPriority)
 	nowTask.ScheduledAt = time.Now()
 
 	err := q.Enqueue(nowTask)
@@ -181,17 +181,17 @@ func TestUpdateTask(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test", nil, task.PriorityMedium)
+	tsk := task.NewTask("test", nil, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 
-	tsk.Status = task.StatusCompleted
+	tsk.Status = task.CompletedStatus
 	err = q.UpdateTask(tsk)
 	assert.NoError(t, err)
 
 	retrieved, err := q.GetTask(tsk.ID)
 	require.NoError(t, err)
-	assert.Equal(t, task.StatusCompleted, retrieved.Status)
+	assert.Equal(t, task.CompletedStatus, retrieved.Status)
 }
 
 func TestGetTask(t *testing.T) {
@@ -199,7 +199,7 @@ func TestGetTask(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 
@@ -225,9 +225,9 @@ func TestGetAllTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := task.NewTask("task1", nil, task.PriorityMedium)
-	task2 := task.NewTask("task2", nil, task.PriorityMedium)
-	task3 := task.NewTask("task3", nil, task.PriorityMedium)
+	task1 := task.NewTask("task1", nil, task.MediumPriority)
+	task2 := task.NewTask("task2", nil, task.MediumPriority)
+	task3 := task.NewTask("task3", nil, task.MediumPriority)
 
 	err := q.Enqueue(task1)
 	assert.NoError(t, err)
@@ -266,7 +266,7 @@ func TestCompleteTaskWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -286,7 +286,7 @@ func TestFailTaskWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -308,7 +308,7 @@ func TestMoveToDeadLetterWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -328,7 +328,7 @@ func TestIncrementRetryCountWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
@@ -371,7 +371,7 @@ func TestQueueWithNilRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
@@ -394,11 +394,11 @@ func TestUpdateTaskWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
-	tsk.Status = task.StatusRunning
+	tsk.Status = task.RunningStatus
 	tsk.RetryCount = 1
 	err = q.UpdateTask(tsk)
 	require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestMultipleTasksWithRepository(t *testing.T) {
 
 	taskIDs := []string{}
 	for i := range 5 {
-		tsk := task.NewTask("test_task", map[string]any{"index": i}, task.PriorityMedium)
+		tsk := task.NewTask("test_task", map[string]any{"index": i}, task.MediumPriority)
 		err := q.Enqueue(tsk)
 		require.NoError(t, err)
 		taskIDs = append(taskIDs, tsk.ID)

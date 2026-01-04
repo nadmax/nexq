@@ -58,15 +58,15 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	for _, t := range tasks {
 		switch t.Status {
-		case task.StatusPending:
+		case task.PendingStatus:
 			stats.PendingTasks++
-		case task.StatusRunning:
+		case task.RunningStatus:
 			stats.RunningTasks++
-		case task.StatusCompleted:
+		case task.CompletedStatus:
 			stats.CompletedTasks++
-		case task.StatusFailed:
+		case task.FailedStatus:
 			stats.FailedTasks++
-		case task.StatusDeadLetter:
+		case task.DeadLetterStatus:
 			stats.DeadLetterTasks++
 		}
 

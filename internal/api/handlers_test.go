@@ -45,7 +45,7 @@ func TestCreateTask(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	reqBody := CreateTaskRequest{
+	reqBody := TaskRequest{
 		Type:    "send_email",
 		Payload: map[string]any{"to": "test@example.com"},
 	}
@@ -64,7 +64,7 @@ func TestCreateTask(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "send_email", tsk.Type)
 	assert.NotEmpty(t, tsk.ID)
-	assert.Equal(t, task.PriorityMedium, tsk.Priority)
+	assert.Equal(t, task.MediumPriority, tsk.Priority)
 }
 
 func TestCreateTaskWithHistory(t *testing.T) {
@@ -72,7 +72,7 @@ func TestCreateTaskWithHistory(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	req := CreateTaskRequest{
+	req := TaskRequest{
 		Type:    "send_email",
 		Payload: map[string]any{"to": "test@example.com"},
 	}
@@ -95,7 +95,7 @@ func TestCreateTaskWithHistory(t *testing.T) {
 
 	status, exists := mockRepo.GetTaskStatus(tsk.ID)
 	assert.True(t, exists, "Task status should be retrievable")
-	assert.Equal(t, task.StatusPending, status, "Task should be pending")
+	assert.Equal(t, task.PendingStatus, status, "Task should be pending")
 }
 
 func TestCreateTask_WithPriority(t *testing.T) {
@@ -103,8 +103,8 @@ func TestCreateTask_WithPriority(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	priority := task.PriorityHigh
-	reqBody := CreateTaskRequest{
+	priority := task.HighPriority
+	reqBody := TaskRequest{
 		Type:     "send_email",
 		Payload:  map[string]any{"to": "test@example.com"},
 		Priority: &priority,
@@ -122,7 +122,7 @@ func TestCreateTask_WithPriority(t *testing.T) {
 	var tsk task.Task
 	err := json.Unmarshal(w.Body.Bytes(), &tsk)
 	require.NoError(t, err)
-	assert.Equal(t, task.PriorityHigh, tsk.Priority)
+	assert.Equal(t, task.HighPriority, tsk.Priority)
 }
 
 func TestCreateTask_WithSchedule(t *testing.T) {
@@ -131,7 +131,7 @@ func TestCreateTask_WithSchedule(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	scheduleIn := 60
-	reqBody := CreateTaskRequest{
+	reqBody := TaskRequest{
 		Type:       "send_email",
 		Payload:    map[string]any{"to": "test@example.com"},
 		ScheduleIn: &scheduleIn,
@@ -171,7 +171,7 @@ func TestCreateTask_MissingType(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	reqBody := CreateTaskRequest{
+	reqBody := TaskRequest{
 		Payload: map[string]any{"to": "test@example.com"},
 	}
 	body, _ := json.Marshal(reqBody)
@@ -190,8 +190,8 @@ func TestListTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	task1 := task.NewTask("task1", nil, task.PriorityMedium)
-	task2 := task.NewTask("task2", nil, task.PriorityHigh)
+	task1 := task.NewTask("task1", nil, task.MediumPriority)
+	task2 := task.NewTask("task2", nil, task.HighPriority)
 	err := q.Enqueue(task1)
 	assert.NoError(t, err)
 	err = q.Enqueue(task2)
@@ -233,7 +233,7 @@ func TestGetTaskByID(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.PriorityMedium)
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
 	err := q.Enqueue(tsk)
 	assert.NoError(t, err)
 

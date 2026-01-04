@@ -61,7 +61,7 @@ func (w *Worker) processTask(t *task.Task) {
 	log.Printf("Worker %s processing task %s (type: %s)", w.id, t.ID, t.Type)
 
 	startTime := time.Now()
-	t.Status = task.StatusRunning
+	t.Status = task.RunningStatus
 	t.StartedAt = &startTime
 	if err := w.queue.UpdateTask(t); err != nil {
 		log.Printf("Failed to update task status to running: %v", err)
@@ -70,7 +70,7 @@ func (w *Worker) processTask(t *task.Task) {
 	if err := w.queue.LogExecution(
 		t.ID,
 		t.RetryCount+1,
-		string(task.StatusRunning),
+		string(task.RunningStatus),
 		0,
 		"",
 		w.id,
@@ -97,7 +97,7 @@ func (w *Worker) processTask(t *task.Task) {
 }
 
 func (w *Worker) handleTaskSuccess(t *task.Task, durationMs int) {
-	t.Status = task.StatusCompleted
+	t.Status = task.CompletedStatus
 	if err := w.queue.UpdateTask(t); err != nil {
 		log.Printf("Failed to update completed task: %v", err)
 	}
@@ -107,7 +107,7 @@ func (w *Worker) handleTaskSuccess(t *task.Task, durationMs int) {
 	if err := w.queue.LogExecution(
 		t.ID,
 		t.RetryCount+1,
-		string(task.StatusCompleted),
+		string(task.CompletedStatus),
 		durationMs,
 		"",
 		w.id,
@@ -126,7 +126,7 @@ func (w *Worker) handleTaskFailure(t *task.Task, taskErr error, startTime time.T
 	if err := w.queue.LogExecution(
 		t.ID,
 		t.RetryCount,
-		string(task.StatusFailed),
+		string(task.FailedStatus),
 		durationMs,
 		taskErr.Error(),
 		w.id,
@@ -135,7 +135,7 @@ func (w *Worker) handleTaskFailure(t *task.Task, taskErr error, startTime time.T
 	}
 
 	if t.RetryCount < t.MaxRetries {
-		t.Status = task.StatusPending
+		t.Status = task.PendingStatus
 		backoffDuration := time.Duration(t.RetryCount) * 10 * time.Second
 		t.ScheduledAt = time.Now().Add(backoffDuration)
 
@@ -152,7 +152,7 @@ func (w *Worker) handleTaskFailure(t *task.Task, taskErr error, startTime time.T
 		log.Printf("Worker %s: Task %s failed, will retry (%d/%d) in %s",
 			w.id, t.ID, t.RetryCount, t.MaxRetries, backoffDuration)
 	} else {
-		t.Status = task.StatusFailed
+		t.Status = task.FailedStatus
 		if err := w.queue.UpdateTask(t); err != nil {
 			log.Printf("Failed to update failed task: %v", err)
 		}
