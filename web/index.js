@@ -333,6 +333,15 @@ async function loadHistoryStats() {
                                 ${completed.avg_retries ? `<div>Avg Retries: ${completed.avg_retries.toFixed(2)}</div>` : ''}
                             </div>
                         ` : ''}
+                        ${failed && failed.count > 0 ? `
+                            <div style="padding-top: 12px; font-size: 12px; color: var(--error, #ef4444); border-top: 1px solid var(--border); margin-top: 12px;">
+                                <div style="font-weight: 500; margin-bottom: 4px;">Failed Tasks</div>
+                                <div>Count: ${failed.count}</div>
+                                ${failed.avg_duration_ms ? `<div>Avg Duration: ${Math.round(failed.avg_duration_ms)}ms</div>` : ''}
+                                ${failed.max_duration_ms ? `<div>Max Duration: ${Math.round(failed.max_duration_ms)}ms</div>` : ''}
+                                ${failed.avg_retries ? `<div>Avg Retries: ${failed.avg_retries.toFixed(2)}</div>` : ''}
+                            </div>
+                        ` : ''}
                         </div>
                     `;
         }).join('')}
