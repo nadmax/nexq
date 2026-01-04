@@ -502,6 +502,20 @@ button.danger {
     color: var(--primary);
 }
 
+.required-label {
+    color: var(--danger);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.optional-label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 .example-title {
     font-weight: 700;
     color: var(--text);
