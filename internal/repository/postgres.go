@@ -55,6 +55,66 @@ func NewPostgresTaskRepository(connectionString string) (*PostgresTaskRepository
 	return &PostgresTaskRepository{db: db}, nil
 }
 
+func (r *PostgresTaskRepository) GetTask(ctx context.Context, taskID string) (*task.Task, error) {
+	query := `
+		SELECT 
+			task_id, type, payload, priority, status, 
+			retry_count, failure_reason, created_at, 
+			scheduled_at, started_at, completed_at,
+			duration_ms, worker_id, moved_to_dlq_at
+		FROM task_history
+		WHERE task_id = $1
+	`
+
+	var t task.Task
+	var payload []byte
+	var scheduledAt, startedAt, completedAt, movedToDLQAt sql.NullTime
+	var durationMs sql.NullInt64
+	var workerID, failureReason sql.NullString
+
+	err := r.db.QueryRowContext(ctx, query, taskID).Scan(
+		&t.ID,
+		&t.Type,
+		&payload,
+		&t.Priority,
+		&t.Status,
+		&t.RetryCount,
+		&failureReason,
+		&t.CreatedAt,
+		&scheduledAt,
+		&startedAt,
+		&completedAt,
+		&durationMs,
+		&workerID,
+		&movedToDLQAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(payload, &t.Payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
+	if scheduledAt.Valid {
+		t.ScheduledAt = scheduledAt.Time
+	}
+	if startedAt.Valid {
+		t.StartedAt = &startedAt.Time
+	}
+	if completedAt.Valid {
+		t.CompletedAt = &completedAt.Time
+	}
+	if movedToDLQAt.Valid {
+		t.MoveToDLQAt = &movedToDLQAt.Time
+	}
+	if failureReason.Valid {
+		t.FailureReason = failureReason.String
+	}
+
+	return &t, nil
+}
+
 func (r *PostgresTaskRepository) SaveTask(ctx context.Context, t *task.Task) error {
 	payload, err := json.Marshal(t.Payload)
 	if err != nil {

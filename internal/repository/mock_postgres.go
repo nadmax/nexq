@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/nadmax/nexq/internal/task"
@@ -9,6 +10,7 @@ import (
 
 type MockPostgresRepository struct {
 	mu                    sync.Mutex
+	GetTaskCalls          []string
 	SaveTaskCalls         []SaveTaskCall
 	UpdateTaskStatusCalls []UpdateTaskStatusCall
 	CompleteTaskCalls     []CompleteTaskCall
@@ -20,6 +22,7 @@ type MockPostgresRepository struct {
 	ExecutionLog          []LogExecutionCall
 	TaskStats             []TaskStats
 	RecentTasks           []RecentTask
+	GetTaskError          error
 	SaveTaskError         error
 	CompleteTaskError     error
 	FailTaskError         error
@@ -72,6 +75,25 @@ func NewMockPostgresRepository() *MockPostgresRepository {
 		TaskStats:    make([]TaskStats, 0),
 		RecentTasks:  make([]RecentTask, 0),
 	}
+}
+
+func (m *MockPostgresRepository) GetTask(ctx context.Context, taskID string) (*task.Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.GetTaskCalls = append(m.GetTaskCalls, taskID)
+
+	if m.GetTaskError != nil {
+		return nil, m.GetTaskError
+	}
+
+	t, exists := m.Tasks[taskID]
+	if !exists {
+		return nil, fmt.Errorf("task not found: %s", taskID)
+	}
+
+	taskCopy := *t
+	return &taskCopy, nil
 }
 
 func (m *MockPostgresRepository) SaveTask(ctx context.Context, t *task.Task) error {

@@ -80,3 +80,16 @@ func TaskFromJSON(data string) (*Task, error) {
 
 	return &t, nil
 }
+
+func (p TaskPriority) String() string {
+	switch p {
+	case LowPriority:
+		return "low"
+	case MediumPriority:
+		return "medium"
+	case HighPriority:
+		return "high"
+	default:
+		return "unknown"
+	}
+}

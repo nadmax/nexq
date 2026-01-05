@@ -101,7 +101,7 @@ func (w *Worker) handleTaskSuccess(t *task.Task, durationMs int) {
 	if err := w.queue.UpdateTask(t); err != nil {
 		log.Printf("Failed to update completed task: %v", err)
 	}
-	if err := w.queue.CompleteTask(t.ID, durationMs); err != nil {
+	if err := w.queue.CompleteTask(t, durationMs); err != nil {
 		log.Printf("Warning: failed to mark task as completed in history: %v", err)
 	}
 	if err := w.queue.LogExecution(
@@ -145,7 +145,7 @@ func (w *Worker) handleTaskFailure(t *task.Task, taskErr error, startTime time.T
 		if err := w.queue.IncrementRetryCount(t.ID); err != nil {
 			log.Printf("Warning: failed to increment retry count: %v", err)
 		}
-		if err := w.queue.FailTask(t.ID, taskErr.Error(), durationMs); err != nil {
+		if err := w.queue.FailTask(t, taskErr.Error(), durationMs); err != nil {
 			log.Printf("Warning: failed to record task failure: %v", err)
 		}
 
