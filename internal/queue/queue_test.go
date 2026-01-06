@@ -271,7 +271,7 @@ func TestCompleteTaskWithRepository(t *testing.T) {
 	require.NoError(t, err)
 
 	durationMs := 250
-	err = q.CompleteTask(tsk.ID, durationMs)
+	err = q.CompleteTask(tsk, durationMs)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, mockRepo.GetCompleteTaskCallCount())
@@ -292,7 +292,7 @@ func TestFailTaskWithRepository(t *testing.T) {
 
 	reason := "Connection timeout"
 	durationMs := 1500
-	err = q.FailTask(tsk.ID, reason, durationMs)
+	err = q.FailTask(tsk, reason, durationMs)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, mockRepo.GetFailTaskCallCount())
@@ -376,10 +376,10 @@ func TestQueueWithNilRepository(t *testing.T) {
 	err := q.Enqueue(tsk)
 	require.NoError(t, err)
 
-	err = q.CompleteTask(tsk.ID, 100)
+	err = q.CompleteTask(tsk, 100)
 	require.NoError(t, err)
 
-	err = q.FailTask(tsk.ID, "error", 100)
+	err = q.FailTask(tsk, "error", 100)
 	require.NoError(t, err)
 
 	err = q.IncrementRetryCount(tsk.ID)

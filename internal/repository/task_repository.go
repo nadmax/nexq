@@ -7,6 +7,7 @@ import (
 )
 
 type TaskRepository interface {
+	GetTask(ctx context.Context, taskID string) (*task.Task, error)
 	SaveTask(ctx context.Context, t *task.Task) error
 	UpdateTaskStatus(ctx context.Context, taskID string, status task.TaskStatus, workerID string) error
 	CompleteTask(ctx context.Context, taskID string, durationMs int) error

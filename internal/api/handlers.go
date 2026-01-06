@@ -12,8 +12,11 @@ import (
 
 	"github.com/nadmax/nexq/internal/dashboard"
 	"github.com/nadmax/nexq/internal/httputil"
+	"github.com/nadmax/nexq/internal/metrics"
 	"github.com/nadmax/nexq/internal/queue"
 	"github.com/nadmax/nexq/internal/task"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type API struct {
@@ -54,6 +57,8 @@ func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/history/recent", a.handleRecentHistory)
 	a.mux.HandleFunc("/api/history/task/", a.handleTaskHistory)
 	a.mux.HandleFunc("/api/history/type/", a.handleTasksByType)
+
+	a.mux.Handle("/metrics", promhttp.Handler())
 
 	fs := http.FileServer(http.Dir("./web"))
 	a.mux.Handle("/", fs)
@@ -112,6 +117,8 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	metrics.RecordTaskEnqueued(t.Type, t.Priority)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -221,10 +228,17 @@ func (a *API) getDLQTask(w http.ResponseWriter, taskID string) {
 }
 
 func (a *API) retryDLQTask(w http.ResponseWriter, taskID string) {
+	t, err := a.queue.GetDeadLetterTask(taskID)
+	if err != nil {
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := a.queue.RetryDeadLetterTask(taskID); err != nil {
 		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	metrics.RecordTaskRetried(t.Type)
 
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]string{

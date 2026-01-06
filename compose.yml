@@ -31,6 +31,35 @@ services:
       timeout: 5s
       retries: 5
 
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.133.0
+    ports:
+      - "8428:8428"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config/victoriametrics.yml:/etc/victoriametrics/scrape.yml:ro
+      - victoriametrics-data:/victoria-metrics-data
+    command:
+      - "-promscrape.config=/etc/victoriametrics/scrape.yml"
+      - "-storageDataPath=/victoria-metrics-data"
+      - "-retentionPeriod=1"
+      - "-httpListenAddr=:8428"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - victoriametrics
+
   server:
     build:
       context: .
@@ -67,3 +96,5 @@ services:
 volumes:
   pogocache-data:
   postgres-data:
+  victoriametrics-data:
+  grafana-data:

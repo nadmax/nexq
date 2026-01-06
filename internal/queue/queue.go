@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nadmax/nexq/internal/metrics"
 	"github.com/nadmax/nexq/internal/repository"
 	"github.com/nadmax/nexq/internal/task"
 	"github.com/redis/go-redis/v9"
@@ -63,12 +64,18 @@ func (q *Queue) Enqueue(t *task.Task) error {
 		return err
 	}
 
-	return q.client.Set(
+	if err := q.client.Set(
 		q.ctx,
 		"task:"+t.ID,
 		data,
 		0,
-	).Err()
+	).Err(); err != nil {
+		return err
+	}
+
+	metrics.RecordTaskEnqueued(t.Type, t.Priority)
+
+	return nil
 }
 
 func (q *Queue) Dequeue() (*task.Task, error) {
@@ -107,6 +114,8 @@ func (q *Queue) Dequeue() (*task.Task, error) {
 		return nil, err
 	}
 
+	waitTime := time.Since(t.CreatedAt)
+	metrics.RecordTaskWaitTime(t.Type, t.Priority, waitTime)
 	if q.repo != nil {
 		t.Status = task.RunningStatus
 		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.RunningStatus, ""); err != nil {
@@ -120,17 +129,23 @@ func (q *Queue) Dequeue() (*task.Task, error) {
 	return t, nil
 }
 
-func (q *Queue) CompleteTask(taskID string, durationMs int) error {
+func (q *Queue) CompleteTask(t *task.Task, durationMs int) error {
+	duration := time.Duration(durationMs) * time.Millisecond
+	metrics.RecordTaskCompleted(t.Type, duration)
+
 	if q.repo != nil {
-		return q.repo.CompleteTask(q.ctx, taskID, durationMs)
+		return q.repo.CompleteTask(q.ctx, t.ID, durationMs)
 	}
 
 	return nil
 }
 
-func (q *Queue) FailTask(taskID string, reason string, durationMs int) error {
+func (q *Queue) FailTask(t *task.Task, reason string, durationMs int) error {
+	duration := time.Duration(durationMs) * time.Millisecond
+	metrics.RecordTaskFailed(t.Type, duration)
+
 	if q.repo != nil {
-		return q.repo.FailTask(q.ctx, taskID, reason, durationMs)
+		return q.repo.FailTask(q.ctx, t.ID, reason, durationMs)
 	}
 
 	return nil
@@ -226,12 +241,18 @@ func (q *Queue) MoveToDeadLetter(t *task.Task, reason string) error {
 		return err
 	}
 
-	return q.client.Set(
+	if err := q.client.Set(
 		q.ctx,
 		"dlq:task:"+t.ID,
 		data,
 		0,
-	).Err()
+	).Err(); err != nil {
+		return err
+	}
+
+	metrics.RecordTaskDeadLettered(t.Type)
+
+	return nil
 }
 
 func (q *Queue) GetDeadLetterTasks() ([]*task.Task, error) {
@@ -344,4 +365,29 @@ func (q *Queue) GetRepository() repository.TaskRepository {
 
 func (q *Queue) Close() error {
 	return q.client.Close()
+}
+
+func (q *Queue) UpdateMetrics() error {
+	tasks, err := q.GetAllTasks()
+	if err != nil {
+		return err
+	}
+
+	tasksByStatus := make(map[task.TaskStatus]map[string]int)
+	for _, t := range tasks {
+		if tasksByStatus[t.Status] == nil {
+			tasksByStatus[t.Status] = make(map[string]int)
+		}
+		tasksByStatus[t.Status][t.Type]++
+	}
+
+	metrics.UpdateTaskGauges(tasksByStatus)
+	metrics.UpdateQueueDepth(len(tasks))
+
+	dlqTasks, err := q.GetDeadLetterTasks()
+	if err == nil {
+		metrics.UpdateDeadLetterQueueDepth(len(dlqTasks))
+	}
+
+	return nil
 }
