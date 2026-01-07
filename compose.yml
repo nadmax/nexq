@@ -94,7 +94,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  pogocache-data:
   postgres-data:
   victoriametrics-data:
   grafana-data:
