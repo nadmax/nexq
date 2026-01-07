@@ -21,6 +21,7 @@ type Stats struct {
 	RunningTasks    int            `json:"running_tasks"`
 	CompletedTasks  int            `json:"completed_tasks"`
 	FailedTasks     int            `json:"failed_tasks"`
+	CancelledTasks  int            `json:"canceled_tasks"`
 	DeadLetterTasks int            `json:"dead_letter_tasks"`
 	TasksByType     map[string]int `json:"tasks_by_type"`
 	AverageWaitTime string         `json:"average_wait_time"`
@@ -66,6 +67,8 @@ func (d *Dashboard) GetStats(w http.ResponseWriter, r *http.Request) {
 			stats.CompletedTasks++
 		case task.FailedStatus:
 			stats.FailedTasks++
+		case task.CancelledStatus:
+			stats.CancelledTasks++
 		case task.DeadLetterStatus:
 			stats.DeadLetterTasks++
 		}

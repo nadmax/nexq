@@ -260,6 +260,32 @@ button.danger {
     color: #7f1d1d; 
 }
 
+.cancel-btn {
+    background: var(--danger);
+    color: white;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+    margin-top: 6px;
+    font-weight: 600;
+    transition: all .15s ease;
+}
+
+.cancel-btn:hover {
+    background: var(--danger);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--danger);
+}
+
+.status.cancelled { 
+    background: rgba(156, 163, 175, 0.2); 
+    color: #374151; 
+}
+
+.stat-card.cancelled {
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+}
+
 .priority {
     border-radius: 999px;
     padding: 4px 10px;

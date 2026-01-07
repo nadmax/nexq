@@ -44,6 +44,7 @@ func NewAPI(q *queue.Queue) *API {
 func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/tasks", a.handleTasks)
 	a.mux.HandleFunc("/api/tasks/", a.handleTaskByID)
+	a.mux.HandleFunc("/api/tasks/cancel/", a.handleCancelTask)
 
 	dash := dashboard.NewDashboard(a.queue)
 	a.mux.HandleFunc("/api/dashboard/stats", dash.GetStats)
@@ -162,6 +163,41 @@ func (a *API) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(task); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) handleCancelTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	taskID := strings.TrimPrefix(r.URL.Path, "/api/tasks/cancel/")
+	if taskID == "" {
+		httputil.WriteJSONError(w, "Task ID required", http.StatusBadRequest)
+		return
+	}
+	if err := a.queue.CancelTask(taskID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			httputil.WriteJSONError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if strings.Contains(err.Error(), "cannot cancel") {
+			httputil.WriteJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		httputil.WriteJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"message": "Task cancelled successfully",
+		"task_id": taskID,
+	}); err != nil {
 		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}

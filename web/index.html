@@ -168,7 +168,7 @@
                         <tr>
                             <td><span class="endpoint-badge get">GET</span></td>
                             <td><code>/api/history/recent?limit={limit}</code></td>
-                            <td>Get the last specified numbers of tasks </td>
+                            <td>Get the last specified numbers of tasks</td>
                         </tr>
                         <tr>
                             <td><span class="endpoint-badge get">GET</span></td>
@@ -189,6 +189,11 @@
                             <td><span class="endpoint-badge post">POST</span></td>
                             <td><code>/api/tasks</code></td>
                             <td>Create a new task</td>
+                        </tr>
+                        <tr>
+                            <td><span class="endpoint-badge post">POST</span></td>
+                            <td><code>/api/tasks/cancel/{id}</code></td>
+                            <td>Cancel a task by ID</td>
                         </tr>
                         <tr>
                             <td><span class="endpoint-badge post">POST</span></td>
@@ -261,7 +266,7 @@
             <div id="executionHistory"></div>
         </div>
     </div>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs/loader.min.js"></script>
     <script src="index.js"></script>
 </body>
