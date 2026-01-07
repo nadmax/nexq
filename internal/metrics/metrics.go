@@ -31,6 +31,13 @@ var (
 		},
 		[]string{"type"},
 	)
+	TasksCancelled = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nexq_tasks_cancelled_total",
+			Help: "Total number of tasks cancelled",
+		},
+		[]string{"type"},
+	)
 	TasksRetried = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nexq_tasks_retried_total",
@@ -115,6 +122,10 @@ func RecordTaskCompleted(taskType string, duration time.Duration) {
 func RecordTaskFailed(taskType string, duration time.Duration) {
 	TasksFailed.WithLabelValues(taskType).Inc()
 	TaskDuration.WithLabelValues(taskType, "failed").Observe(duration.Seconds())
+}
+
+func RecordTaskCancelled(taskType string) {
+	TasksCancelled.WithLabelValues(taskType).Inc()
 }
 
 func RecordTaskRetried(taskType string) {

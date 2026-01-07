@@ -111,6 +111,28 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
     }
 });
 
+async function cancelTask(taskId) {
+    if (!confirm('Cancel this task? It will be marked as cancelled and stopped if running.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/tasks/cancel/${taskId}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            alert('Task cancelled successfully');
+            refreshCurrentTab();
+        } else {
+            const error = await response.json();
+            alert('Failed to cancel task: ' + (error.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Error cancelling task: ' + err.message);
+    }
+}
+
 async function loadTasks() {
     try {
         const response = await fetch(`${API_URL}/tasks`);
@@ -127,23 +149,26 @@ async function loadTasks() {
         }
 
         taskList.innerHTML = tasks.map(task => `
-                    <div class="task">
-                        <div class="task-info">
-                            <strong>${task.type}</strong>
-                            <span class="priority ${getPriorityLabel(task.priority)}">${getPriorityLabel(task.priority).toUpperCase()}</span>
-                            <small>${task.id}</small>
-                        </div>
-                        <div>
-                            <small>Created: ${new Date(task.created_at).toLocaleString()}</small>
-                            ${task.scheduled_at !== task.created_at ? `<br><small>Scheduled: ${new Date(task.scheduled_at).toLocaleString()}</small>` : ''}
-                        </div>
-                        <div class="status ${task.status}">${task.status}</div>
-                        <div>
-                            <small>${task.retry_count || 0}/${task.max_retries || 3} retries</small>
-                            ${task.error ? `<br><small style="color: #dc3545;">${task.error}</small>` : ''}
-                        </div>
-                    </div>
-                `).join('');
+            <div class="task">
+                <div class="task-info">
+                    <strong>${task.type}</strong>
+                    <span class="priority ${getPriorityLabel(task.priority)}">${getPriorityLabel(task.priority).toUpperCase()}</span>
+                    <small>${task.id}</small>
+                </div>
+                <div>
+                    <small>Created: ${new Date(task.created_at).toLocaleString()}</small>
+                    ${task.scheduled_at !== task.created_at ? `<br><small>Scheduled: ${new Date(task.scheduled_at).toLocaleString()}</small>` : ''}
+                </div>
+                <div class="status ${task.status}">${task.status}</div>
+                <div>
+                    <small>${task.retry_count || 0}/${task.max_retries || 3} retries</small>
+                    ${task.error ? `<br><small style="color: #dc3545;">${task.error}</small>` : ''}
+                    ${(task.status === 'pending' || task.status === 'running') ? `
+                        <br><button class="cancel-btn" onclick="cancelTask('${task.id}')">Cancel</button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
     } catch (err) {
         console.error('Error loading tasks:', err);
     }
@@ -159,31 +184,35 @@ async function loadStats() {
 
         const stats = await response.json();
         document.getElementById('stats').innerHTML = `
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h3>Total</h3>
-                            <p class="stat-number">${stats.total_tasks || 0}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Pending</h3>
-                            <p class="stat-number">${stats.pending_tasks || 0}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Running</h3>
-                            <p class="stat-number">${stats.running_tasks || 0}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Completed</h3>
-                            <p class="stat-number">${stats.completed_tasks || 0}</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3>Failed</h3>
-                            <p class="stat-number">${stats.failed_tasks || 0}</p>
-                        </div>
-                    </div>
-                    <br>
-                    ${stats.average_wait_time ? `<p><strong>Average Wait Time:</strong> ${stats.average_wait_time}</p>` : ''}
-                `;
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total</h3>
+                    <p class="stat-number">${stats.total_tasks || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Pending</h3>
+                    <p class="stat-number">${stats.pending_tasks || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Running</h3>
+                    <p class="stat-number">${stats.running_tasks || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Completed</h3>
+                    <p class="stat-number">${stats.completed_tasks || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Failed</h3>
+                    <p class="stat-number">${stats.failed_tasks || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Cancelled</h3>
+                    <p class="stat-number">${stats.cancelled_tasks || 0}</p>
+                </div>
+            </div>
+            <br>
+            ${stats.average_wait_time ? `<p><strong>Average Wait Time:</strong> ${stats.average_wait_time}</p>` : ''}
+        `;
     } catch (err) {
         console.error('Error loading stats:', err);
     }

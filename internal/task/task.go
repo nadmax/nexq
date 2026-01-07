@@ -35,6 +35,7 @@ const (
 	RunningStatus    TaskStatus = "running"
 	CompletedStatus  TaskStatus = "completed"
 	FailedStatus     TaskStatus = "failed"
+	CancelledStatus  TaskStatus = "cancelled"
 	DeadLetterStatus TaskStatus = "dead_letter"
 )
 

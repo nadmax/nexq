@@ -140,6 +140,59 @@ func (q *Queue) CompleteTask(t *task.Task, durationMs int) error {
 	return nil
 }
 
+func (q *Queue) CancelTask(taskID string) error {
+	data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
+	if err != nil {
+		return fmt.Errorf("task not found: %w", err)
+	}
+
+	t, err := task.TaskFromJSON(data)
+	if err != nil {
+		return err
+	}
+
+	if t.Status != task.PendingStatus && t.Status != task.RunningStatus {
+		return fmt.Errorf("cannot cancel task with status: %s", t.Status)
+	}
+
+	t.Status = task.CancelledStatus
+	now := time.Now()
+	t.CompletedAt = &now
+
+	if q.repo != nil {
+		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.CancelledStatus, "cancelled by user"); err != nil {
+			log.Printf("Warning: failed to update task status in database: %v", err)
+		}
+	}
+
+	updatedData, err := t.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	if err := q.client.Set(q.ctx, "task:"+taskID, updatedData, 0).Err(); err != nil {
+		return err
+	}
+
+	metrics.RecordTaskCancelled(t.Type)
+
+	return nil
+}
+
+func (q *Queue) IsCancelled(taskID string) (bool, error) {
+	data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
+	if err != nil {
+		return false, err
+	}
+
+	t, err := task.TaskFromJSON(data)
+	if err != nil {
+		return false, err
+	}
+
+	return t.Status == task.CancelledStatus, nil
+}
+
 func (q *Queue) FailTask(t *task.Task, reason string, durationMs int) error {
 	duration := time.Duration(durationMs) * time.Millisecond
 	metrics.RecordTaskFailed(t.Type, duration)
