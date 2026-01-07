@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -61,7 +62,11 @@ func main() {
 	w.RegisterHandler("process_image", processImageHandler)
 	w.RegisterHandler("generate_report", reportGen.GenerateReportHandler)
 
-	go w.Start()
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		w.Start()
+	})
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -69,6 +74,9 @@ func main() {
 
 	log.Println("Shutting down worker...")
 	w.Stop()
+	wg.Wait()
+
+	log.Println("Worker stopped")
 }
 
 func processImageHandler(t *task.Task) error {
