@@ -1,3 +1,175 @@
+class ToastManager {
+    constructor() {
+        this.container = this.createContainer();
+        document.body.appendChild(this.container);
+    }
+
+    createContainer() {
+        const container = document.createElement('div');
+        container.className = 'toast-container';
+        return container;
+    }
+
+    show(message, type = 'info', duration = 4000) {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        const icon = this.getIcon(type);
+        toast.innerHTML = `
+            <span class="toast-icon">${icon}</span>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close" aria-label="Close">&times;</button>
+        `;
+
+        this.container.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('toast-show'), 10);
+
+        const timeoutId = setTimeout(() => this.dismiss(toast), duration);
+
+        toast.querySelector('.toast-close').addEventListener('click', () => {
+            clearTimeout(timeoutId);
+            this.dismiss(toast);
+        });
+
+        return toast;
+    }
+
+    dismiss(toast) {
+        toast.classList.remove('toast-show');
+        setTimeout(() => toast.remove(), 300);
+    }
+
+    getIcon(type) {
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+        return icons[type] || icons.info;
+    }
+
+    success(message, duration) {
+        return this.show(message, 'success', duration);
+    }
+
+    error(message, duration) {
+        return this.show(message, 'error', duration);
+    }
+
+    warning(message, duration) {
+        return this.show(message, 'warning', duration);
+    }
+
+    info(message, duration) {
+        return this.show(message, 'info', duration);
+    }
+}
+
+class ConfirmDialog {
+    constructor() {
+        this.overlay = this.createOverlay();
+        document.body.appendChild(this.overlay);
+    }
+
+    createOverlay() {
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        return overlay;
+    }
+
+    show(options) {
+        return new Promise((resolve) => {
+            const {
+                title = 'Confirm',
+                message,
+                confirmText = 'Confirm',
+                cancelText = 'Cancel',
+                type = 'default'
+            } = options;
+
+            const dialog = document.createElement('div');
+            dialog.className = `confirm-dialog confirm-${type}`;
+            dialog.innerHTML = `
+                <div class="confirm-header">
+                    <h3>${title}</h3>
+                </div>
+                <div class="confirm-body">
+                    <p>${message}</p>
+                </div>
+                <div class="confirm-footer">
+                    <button class="confirm-btn confirm-btn-cancel">${cancelText}</button>
+                    <button class="confirm-btn confirm-btn-confirm confirm-btn-${type}">${confirmText}</button>
+                </div>
+            `;
+
+            this.overlay.appendChild(dialog);
+            this.overlay.classList.add('confirm-show');
+
+            setTimeout(() => dialog.classList.add('confirm-dialog-show'), 10);
+
+            const cleanup = () => {
+                dialog.classList.remove('confirm-dialog-show');
+                this.overlay.classList.remove('confirm-show');
+                setTimeout(() => {
+                    dialog.remove();
+                }, 300);
+            };
+
+            dialog.querySelector('.confirm-btn-cancel').addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+
+            dialog.querySelector('.confirm-btn-confirm').addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) {
+                    cleanup();
+                    resolve(false);
+                }
+            }, { once: true });
+
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(false);
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        });
+    }
+
+    confirm(message, title) {
+        return this.show({ message, title, type: 'primary' });
+    }
+
+    danger(message, title) {
+        return this.show({
+            message,
+            title: title || 'Warning',
+            type: 'danger',
+            confirmText: 'Delete'
+        });
+    }
+
+    warning(message, title) {
+        return this.show({
+            message,
+            title: title || 'Confirm Action',
+            type: 'warning',
+            confirmText: 'Continue'
+        });
+    }
+}
+
+const toast = new ToastManager();
+const confirm = new ConfirmDialog();
 const API_URL = '/api';
 const codeExample = [
     { to: "user@example.com", subject: "Hello from Nexq", body: "This is a custom email!" },
@@ -105,16 +277,24 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
+
+        toast.success('Task created successfully');
         loadTasks();
     } catch (err) {
-        alert('Error creating task: ' + err.message);
+        toast.error('Error creating task: ' + err.message);
     }
 });
 
 async function cancelTask(taskId) {
-    if (!confirm('Cancel this task? It will be marked as cancelled and stopped if running.')) {
-        return;
-    }
+    const confirmed = await confirm.show({
+        title: 'Cancel Task?',
+        message: 'This task will be marked as cancelled and stopped if running.',
+        confirmText: 'Yes, Cancel Task',
+        cancelText: 'No, Keep Task',
+        type: 'primary'
+    });
+
+    if (!confirmed) return;
 
     try {
         const response = await fetch(`${API_URL}/tasks/cancel/${taskId}`, {
@@ -122,16 +302,17 @@ async function cancelTask(taskId) {
         });
 
         if (response.ok) {
-            alert('Task cancelled successfully');
+            toast.success('Task cancelled successfully');
             refreshCurrentTab();
         } else {
             const error = await response.json();
-            alert('Failed to cancel task: ' + (error.error || 'Unknown error'));
+            toast.error('Failed to cancel task: ' + (error.error || 'Unknown error'));
         }
     } catch (err) {
-        alert('Error cancelling task: ' + err.message);
+        toast.error('Error cancelling task: ' + err.message);
     }
 }
+
 
 async function loadTasks() {
     try {
@@ -253,7 +434,7 @@ async function loadDLQTasks() {
                             </div>
                         ` : ''}
                         <div class="dlq-actions">
-                            <button class="success" onclick="retryTask('${task.id}')">Retry Task</button>
+                            <button onclick="retryTask('${task.id}')">Retry Task</button>
                             <button class="danger" onclick="purgeTask('${task.id}')">Delete Permanently</button>
                         </div>
                     </div>
@@ -451,7 +632,7 @@ async function viewTaskHistory(taskId) {
 
         const history = await response.json();
         if (!history || history.length === 0) {
-            alert('No execution history found for this task');
+            toast.info('No execution history found for this task');
             return;
         }
 
@@ -487,7 +668,7 @@ async function viewTaskHistory(taskId) {
         modal.style.display = 'flex';
     } catch (err) {
         console.error('Error loading task history:', err);
-        alert('Failed to load execution history');
+        toast.error('Failed to load execution history');
     }
 }
 
@@ -507,44 +688,56 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function retryTask(taskId) {
-    if (!confirm('Retry this task? It will be moved back to the main queue.')) {
-        return;
-    }
+    const confirmed = await confirm.show({
+        title: 'Retry Task?',
+        message: 'This task will be moved back to the main queue and retried.',
+        confirmText: 'Yes, Retry Task',
+        cancelText: 'No, Leave in DLQ',
+        type: 'success'
+    });
+
+    if (!confirmed) return;
 
     try {
         const response = await fetch(`${API_URL}/dlq/tasks/${taskId}/retry`, {
             method: 'POST'
         });
         if (response.ok) {
-            alert('Task moved back to queue for retry');
+            toast.success('Task moved back to queue for retry');
             loadDLQTasks();
             loadDLQStats();
         } else {
-            alert('Failed to retry task');
+            toast.error('Failed to retry task');
         }
     } catch (err) {
-        alert('Error retrying task: ' + err.message);
+        toast.error('Error retrying task: ' + err.message);
     }
 }
 
 async function purgeTask(taskId) {
-    if (!confirm('Permanently delete this task? This cannot be undone.')) {
-        return;
-    }
+    const confirmed = await confirm.show({
+        title: 'Delete Task Permanently?',
+        message: 'This action cannot be undone. The task will be permanently deleted from the system.',
+        confirmText: 'Yes, Delete Forever',
+        cancelText: 'No, Keep Task',
+        type: 'danger'
+    });
+
+    if (!confirmed) return;
 
     try {
         const response = await fetch(`${API_URL}/dlq/tasks/${taskId}`, {
             method: 'DELETE'
         });
         if (response.ok) {
-            alert('Task permanently deleted');
+            toast.success('Task permanently deleted');
             loadDLQTasks();
             loadDLQStats();
         } else {
-            alert('Failed to delete task');
+            toast.error('Failed to delete task');
         }
     } catch (err) {
-        alert('Error deleting task: ' + err.message);
+        toast.error('Error deleting task: ' + err.message);
     }
 }
 
