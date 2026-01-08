@@ -1,4 +1,4 @@
-![CI](https://github.com/nadmax/nexq/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/nadmax/nexq/actions/workflows/ci.yml/badge.svg) [![codecov](https://codecov.io/gh/nadmax/nexq/graph/badge.svg)](https://codecov.io/gh/nadmax/nexq)
 
 # Nexq
 
@@ -86,4 +86,7 @@ Feel free to use this project however you'd like!
 - [Go 1.25.3](https://golang.org/)
 - [Pogocache](https://github.com/pogocache/pogocache) - Fast caching with focus on low latency and CPU efficiency
 - [go-redis](https://github.com/redis/go-redis) - Redis/Pogocache client for Go
+- [sendgrid-go](https://github.com/sendgrid/sendgrid-go) - SendGrid Golang API Library
+- [pq](https://github.com/lib/pq) - Go PostgreSQL driver for `database/sql`
+- [Prometheus](https://github.com/prometheus/client_golang) - Prometheus instrumentation library for Go
 - Go standard library (`net/http`, `encoding/json`)
