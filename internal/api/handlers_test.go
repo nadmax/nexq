@@ -3,9 +3,11 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/nadmax/nexq/internal/queue"
@@ -345,6 +347,350 @@ func TestHistoryStatsWithoutRepo(t *testing.T) {
 
 	api.ServeHTTP(w, r)
 
-	// Should return 503 when PostgreSQL is not configured
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandleRecentHistory_Success(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	duration1 := 250
+	duration2 := 150
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:     "task-1",
+			Type:       "send_email",
+			Status:     string(task.CompletedStatus),
+			CreatedAt:  time.Now().Add(-1 * time.Hour),
+			DurationMs: &duration1,
+		},
+		{
+			TaskID:     "task-2",
+			Type:       "notification",
+			Status:     string(task.CompletedStatus),
+			CreatedAt:  time.Now().Add(-30 * time.Minute),
+			DurationMs: &duration2,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/recent", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var tasks []repository.RecentTask
+	err := json.NewDecoder(w.Body).Decode(&tasks)
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
+	assert.Equal(t, "send_email", tasks[0].Type)
+}
+
+func TestHandleRecentHistory_WithLimit(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.RecentTasks = []repository.RecentTask{}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/recent?limit=50", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// The limit is passed to the repository method, which uses it internally
+}
+
+func TestHandleRecentHistory_InvalidLimit(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.RecentTasks = []repository.RecentTask{}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/recent?limit=invalid", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandleRecentHistory_MethodNotAllowed(t *testing.T) {
+	api, q, _, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/history/recent", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestHandleRecentHistory_NoRepository(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/recent", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "PostgreSQL not configured")
+}
+
+func TestHandleRecentHistory_RepositoryError(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.GetRecentTasksError = errors.New("database connection failed")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/recent", nil)
+
+	api.handleRecentHistory(w, r)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "database connection failed")
+}
+
+func TestHandleTaskHistory_Success(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	taskID := "task-123"
+	mockRepo.ExecutionLog = []repository.LogExecutionCall{
+		{
+			TaskID:        taskID,
+			AttemptNumber: 1,
+			Status:        "pending",
+			DurationMs:    0,
+			WorkerID:      "worker-1",
+		},
+		{
+			TaskID:        taskID,
+			AttemptNumber: 1,
+			Status:        "completed",
+			DurationMs:    250,
+			WorkerID:      "worker-1",
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/task/"+taskID, nil)
+
+	api.handleTaskHistory(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var history []map[string]any
+	err := json.NewDecoder(w.Body).Decode(&history)
+	require.NoError(t, err)
+	assert.Len(t, history, 2)
+	assert.Equal(t, taskID, history[0]["task_id"])
+	assert.Equal(t, "pending", history[0]["status"])
+	assert.Equal(t, "completed", history[1]["status"])
+}
+
+func TestHandleTaskHistory_MissingTaskID(t *testing.T) {
+	api, q, _, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/task/", nil)
+
+	api.handleTaskHistory(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Task ID is required")
+}
+
+func TestHandleTaskHistory_MethodNotAllowed(t *testing.T) {
+	api, q, _, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/history/task/task-123", nil)
+
+	api.handleTaskHistory(w, r)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestHandleTaskHistory_NoRepository(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/task/task-123", nil)
+
+	api.handleTaskHistory(w, r)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandleTaskHistory_RepositoryError(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.GetTaskHistoryError = errors.New("query failed")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/task/task-123", nil)
+
+	api.handleTaskHistory(w, r)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "query failed")
+}
+
+func TestHandleTasksByType_Success(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	taskType := "send_email"
+	duration1 := 200
+	duration2 := 300
+	mockRepo.RecentTasks = []repository.RecentTask{
+		{
+			TaskID:     "task-1",
+			Type:       taskType,
+			Status:     string(task.CompletedStatus),
+			CreatedAt:  time.Now(),
+			DurationMs: &duration1,
+		},
+		{
+			TaskID:     "task-2",
+			Type:       taskType,
+			Status:     string(task.CompletedStatus),
+			CreatedAt:  time.Now(),
+			DurationMs: &duration2,
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/type/"+taskType, nil)
+
+	api.handleTasksByType(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var tasks []repository.RecentTask
+	err := json.NewDecoder(w.Body).Decode(&tasks)
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
+	assert.Equal(t, taskType, tasks[0].Type)
+}
+
+func TestHandleTasksByType_WithLimit(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.RecentTasks = []repository.RecentTask{}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/type/send_email?limit=25", nil)
+
+	api.handleTasksByType(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandleTasksByType_MissingType(t *testing.T) {
+	api, q, _, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/type/", nil)
+
+	api.handleTasksByType(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Task type is required")
+}
+
+func TestHandleTasksByType_MethodNotAllowed(t *testing.T) {
+	api, q, _, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodDelete, "/api/history/type/send_email", nil)
+
+	api.handleTasksByType(w, r)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestHandleTasksByType_NoRepository(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/type/send_email", nil)
+
+	api.handleTasksByType(w, r)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandleTasksByType_RepositoryError(t *testing.T) {
+	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	mockRepo.GetTasksByTypeError = errors.New("database error")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/history/type/send_email", nil)
+
+	api.handleTasksByType(w, r)
+
+	// Debug
+	t.Logf("Status Code: %d", w.Code)
+	t.Logf("Response: %s", w.Body.String())
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "database error")
 }

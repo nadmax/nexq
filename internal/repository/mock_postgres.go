@@ -31,6 +31,8 @@ type MockPostgresRepository struct {
 	LogExecutionError     error
 	GetTaskStatsError     error
 	GetRecentTasksError   error
+	GetTaskHistoryError   error
+	GetTasksByTypeError   error
 }
 
 type SaveTaskCall struct {
@@ -261,6 +263,10 @@ func (m *MockPostgresRepository) GetTasksByType(ctx context.Context, taskType st
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.GetTasksByTypeError != nil {
+		return nil, m.GetTasksByTypeError
+	}
+
 	var filtered []RecentTask
 	for _, task := range m.RecentTasks {
 		if task.Type == taskType {
@@ -278,19 +284,20 @@ func (m *MockPostgresRepository) GetTaskHistory(ctx context.Context, taskID stri
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.GetTaskHistoryError != nil {
+		return nil, m.GetTaskHistoryError
+	}
+
 	var history []map[string]any
-	for _, exec := range m.ExecutionLog {
-		if exec.TaskID == taskID {
+	for _, log := range m.ExecutionLog {
+		if log.TaskID == taskID {
 			entry := map[string]any{
-				"attempt_number": exec.AttemptNumber,
-				"status":         exec.Status,
-				"worker_id":      exec.WorkerID,
-			}
-			if exec.DurationMs > 0 {
-				entry["duration_ms"] = exec.DurationMs
-			}
-			if exec.ErrorMsg != "" {
-				entry["error_message"] = exec.ErrorMsg
+				"task_id":        log.TaskID,
+				"attempt_number": log.AttemptNumber,
+				"status":         log.Status,
+				"duration_ms":    log.DurationMs,
+				"error_message":  log.ErrorMsg,
+				"worker_id":      log.WorkerID,
 			}
 			history = append(history, entry)
 		}
