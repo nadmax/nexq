@@ -305,6 +305,335 @@ func TestServeHTTP(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestHandleCancelTask_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("send_email", map[string]any{"to": "test@example.com"}, task.MediumPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/cancel/"+tsk.ID, nil)
+	w := httptest.NewRecorder()
+
+	api.handleCancelTask(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]string
+	err = json.NewDecoder(w.Body).Decode(&response)
+	require.NoError(t, err)
+	assert.Equal(t, "Task cancelled successfully", response["message"])
+	assert.Equal(t, tsk.ID, response["task_id"])
+}
+
+func TestHandleCancelTask_MethodNotAllowed(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/cancel/task-123", nil)
+	w := httptest.NewRecorder()
+
+	api.handleCancelTask(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Method not allowed")
+}
+
+func TestHandleCancelTask_MissingTaskID(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/cancel/", nil)
+	w := httptest.NewRecorder()
+
+	api.handleCancelTask(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Task ID required")
+}
+
+func TestHandleCancelTask_NotFound(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/cancel/non-existent-task", nil)
+	w := httptest.NewRecorder()
+
+	api.handleCancelTask(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleDLQTasks_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dlq/tasks", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTasks(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var tasks []*task.Task
+	err := json.NewDecoder(w.Body).Decode(&tasks)
+	require.NoError(t, err)
+	// When there are no tasks in DLQ, it should return an empty slice
+	assert.Len(t, tasks, 0)
+}
+
+func TestHandleDLQTasks_MethodNotAllowed(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dlq/tasks", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTasks(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestGetDLQTask_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	// Create a task and move it to DLQ
+	tsk := task.NewTask("failed_task", map[string]any{"data": "test"}, task.MediumPriority)
+	tsk.RetryCount = 3
+	err := q.MoveToDeadLetter(tsk, "max retries exceeded")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dlq/tasks/"+tsk.ID, nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var retrieved task.Task
+	err = json.NewDecoder(w.Body).Decode(&retrieved)
+	require.NoError(t, err)
+	assert.Equal(t, tsk.ID, retrieved.ID)
+	assert.Equal(t, tsk.Type, retrieved.Type)
+}
+
+func TestGetDLQTask_NotFound(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dlq/tasks/non-existent", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestPurgeDLQTask_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("failed_task", map[string]any{"data": "test"}, task.MediumPriority)
+	err := q.MoveToDeadLetter(tsk, "test error")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dlq/tasks/"+tsk.ID, nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
+}
+
+func TestRetryDLQTask_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("failed_task", map[string]any{"data": "test"}, task.MediumPriority)
+	err := q.MoveToDeadLetter(tsk, "test error")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dlq/tasks/"+tsk.ID+"/retry", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]string
+	err = json.NewDecoder(w.Body).Decode(&response)
+	require.NoError(t, err)
+	assert.Equal(t, "Task moved back to queue for retry", response["message"])
+	assert.Equal(t, tsk.ID, response["task_id"])
+}
+
+func TestRetryDLQTask_NotFound(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dlq/tasks/non-existent/retry", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandleDLQTaskByID_MissingTaskID(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dlq/tasks/", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Task ID is required")
+}
+
+func TestHandleDLQTaskByID_InvalidEndpoint(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dlq/tasks/task-123/invalid", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Invalid endpoint")
+}
+
+func TestHandleDLQTaskByID_MethodNotAllowed(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPut, "/api/dlq/tasks/task-123", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestHandleDLQStats_Success(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	// Add some tasks to DLQ
+	tsk1 := task.NewTask("task_type_1", nil, task.MediumPriority)
+	tsk2 := task.NewTask("task_type_2", nil, task.HighPriority)
+
+	err := q.MoveToDeadLetter(tsk1, "error 1")
+	require.NoError(t, err)
+	err = q.MoveToDeadLetter(tsk2, "error 2")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dlq/stats", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQStats(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var stats map[string]any
+	err = json.NewDecoder(w.Body).Decode(&stats)
+	require.NoError(t, err)
+	assert.NotNil(t, stats)
+}
+
+func TestHandleDLQStats_MethodNotAllowed(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dlq/stats", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQStats(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+
+	var errResp map[string]string
+	err := json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Contains(t, errResp["error"], "Method not allowed")
+}
+
+func TestHandleCancelTask_CannotCancel(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("send_email", nil, task.MediumPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	_, err = q.Dequeue()
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/cancel/"+tsk.ID, nil)
+	w := httptest.NewRecorder()
+
+	api.handleCancelTask(w, req)
+
+	if w.Code == http.StatusBadRequest {
+		var errResp map[string]string
+		err = json.NewDecoder(w.Body).Decode(&errResp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, errResp["error"])
+	}
+}
+
+func TestPurgeDLQTask_NonExistent(t *testing.T) {
+	api, q, mr := setupTestAPI(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/dlq/tasks/non-existent", nil)
+	w := httptest.NewRecorder()
+
+	api.handleDLQTaskByID(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
+}
+
 func TestHistoryStatsWithMockRepo(t *testing.T) {
 	api, q, mockRepo, mr := setupTestAPIWithMockRepo(t)
 	defer mr.Close()
