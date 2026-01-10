@@ -263,6 +263,12 @@ function getPriorityLabel(priority) {
     return labels[priority] || 'medium';
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 document.getElementById('taskForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -411,40 +417,134 @@ async function loadDLQTasks() {
 
         const tasks = await response.json();
         const dlqList = document.getElementById('dlqList');
+        if (!dlqList) return;
+
         if (!tasks || tasks.length === 0) {
-            dlqList.innerHTML = '<div class="empty-state">✅ No failed tasks in the dead letter queue</div>';
+            dlqList.innerHTML = `
+                <div class="dlq-empty-state">
+                    <div class="dlq-empty-state-icon">✅</div>
+                    <h3>No failed tasks</h3>
+                    <p>All tasks are running smoothly!</p>
+                </div>
+            `;
             return;
         }
 
-        dlqList.innerHTML = tasks.map(task => `
-                    <div class="dlq-task">
-                        <div class="dlq-info">
-                            <div>
-                                <strong>${task.type}</strong>
-                                <span class="priority ${getPriorityLabel(task.priority)}">${getPriorityLabel(task.priority).toUpperCase()}</span>
-                                <br>
-                                <small>${task.id}</small>
-                            </div>
-                            <div>
-                                <small>Failed: ${new Date(task.moved_to_dlq_at).toLocaleString()}</small><br>
-                                <small>Retries: ${task.retry_count}/${task.max_retries}</small>
-                            </div>
+        dlqList.innerHTML = tasks.map((task, index) => {
+            const taskId = task.id.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            const safeId = `dlq-item-${index}`;
+            const failureReason = task.failure_reason ? task.failure_reason : '';
+            const payloadJson = task.payload ? JSON.stringify(task.payload, null, 2) : '';
+            const movedToDLQAt = task.moved_to_dlq_at ? new Date(task.moved_to_dlq_at).toLocaleString() : 'Unknown';
+            const createdAt = task.created_at ? new Date(task.created_at).toLocaleString() : 'Unknown';
+            const hasPayload = task.payload && Object.keys(task.payload).length > 0;
+            const escapedFailureReason = failureReason ? escapeHtml(failureReason) : '';
+            const escapedPayloadJson = hasPayload ? escapeHtml(payloadJson) : '';
+            
+            return `
+                <div class="dlq-task" data-task-id="${taskId}" data-safe-id="${safeId}">
+                    <div class="dlq-task-header">
+                        <div class="dlq-task-main-info">
+                            <div class="dlq-task-type">${escapeHtml(task.type)}</div>
+                            <span class="priority ${getPriorityLabel(task.priority)}">${getPriorityLabel(task.priority).toUpperCase()}</span>
                         </div>
-                        ${task.failure_reason ? `
-                            <div class="failure-reason">
-                                <strong>Failure Reason:</strong> ${task.failure_reason}
-                            </div>
-                        ` : ''}
-                        <div class="dlq-actions">
-                            <button onclick="retryTask('${task.id}')">Retry Task</button>
-                            <button class="danger" onclick="purgeTask('${task.id}')">Delete Permanently</button>
+                        <div class="dlq-task-timestamps">
+                            <small><strong>Failed:</strong> ${movedToDLQAt}</small>
+                            <small><strong>Created:</strong> ${createdAt}</small>
                         </div>
                     </div>
-                `).join('');
+                    
+                    <div class="dlq-task-id">ID: ${escapeHtml(task.id)}</div>
+                    
+                    ${task.failure_reason ? `
+                        <div class="dlq-failure-section">
+                            <div class="dlq-failure-header" onclick="toggleFailureReason('${safeId}')">
+                                <div class="dlq-failure-title">Failure Reason</div>
+                                <button class="dlq-failure-toggle" aria-label="Toggle failure details" type="button">
+                                    <span id="toggle-${safeId}">▼</span>
+                                </button>
+                            </div>
+                            <div class="dlq-failure-content" id="failure-${safeId}">
+                                <div class="dlq-failure-reason">${escapedFailureReason}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    ${hasPayload ? `
+                        <div class="dlq-payload-section">
+                            <button class="dlq-payload-toggle" onclick="togglePayload('${safeId}')" type="button">
+                                <span>View Payload</span>
+                                <span id="payload-toggle-${safeId}">▶</span>
+                            </button>
+                            <div class="dlq-payload-content" id="payload-${safeId}">
+                                <div class="dlq-payload-json">${escapedPayloadJson}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="dlq-task-footer">
+                        <div class="dlq-retry-info">
+                            <div class="dlq-retry-badge">
+                                <span>#</span>
+                                <span>Retries: ${task.retry_count || 0}/${task.max_retries || 3}</span>
+                            </div>
+                        </div>
+                        <div class="dlq-actions">
+                            <button onclick="retryTask('${taskId}')" title="Retry this task">
+                                Retry Task
+                            </button>
+                            <button class="danger" onclick="purgeTask('${taskId}')" title="Permanently delete this task">
+                                Delete Permanently
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     } catch (err) {
         console.error('Error loading DLQ tasks:', err);
-        document.getElementById('dlqList').innerHTML = '<div class="empty-state">Error loading DLQ tasks</div>';
+        document.getElementById('dlqList').innerHTML = `
+            <div class="dlq-empty-state">
+                <div class="dlq-empty-state-icon">❌</div>
+                <h3>Error loading DLQ tasks</h3>
+                <p>${err.message || 'Failed to load failed tasks'}</p>
+            </div>
+        `;
     }
+}
+
+function toggleFailureReason(safeId) {
+    const content = document.getElementById(`failure-${safeId}`);
+    const toggle = document.getElementById(`toggle-${safeId}`);
+    
+    if (!content || !toggle) return;
+    
+    if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        toggle.textContent = '▼';
+
+        return;
+    }
+
+    content.classList.add('expanded');
+    toggle.textContent = '▲';
+}
+
+function togglePayload(safeId) {
+    const content = document.getElementById(`payload-${safeId}`);
+    const toggle = document.getElementById(`payload-toggle-${safeId}`);
+    
+    if (!content || !toggle) return;
+    
+    if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        toggle.textContent = '▶';
+
+        return;
+    }
+
+    content.classList.add('expanded');
+    toggle.textContent = '▼';
 }
 
 async function loadDLQStats() {
@@ -456,28 +556,70 @@ async function loadDLQStats() {
         }
 
         const stats = await response.json();
-        document.getElementById('dlqStats').innerHTML = `
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h3>Total Failed</h3>
-                            <p class="stat-number">${stats.total_tasks || 0}</p>
-                        </div>
-                        ${stats.oldest_task_time ? `
-                            <div class="stat-card">
-                                <h3>Oldest Task</h3>
-                                <p style="font-size: 14px; margin-top: 10px;">${new Date(stats.oldest_task_time).toLocaleString()}</p>
-                            </div>
-                        ` : ''}
-                        ${stats.newest_task_time ? `
-                            <div class="stat-card">
-                                <h3>Newest Task</h3>
-                                <p style="font-size: 14px; margin-top: 10px;">${new Date(stats.newest_task_time).toLocaleString()}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
+        const totalTasks = stats.total_tasks || 0;
+        
+        let statsHtml = `
+            <div class="dlq-stats-enhanced">
+                <div class="dlq-stat-card">
+                    <h3>Total Failed Tasks</h3>
+                    <p class="dlq-stat-number">${totalTasks}</p>
+                    <div class="dlq-stat-time">${totalTasks === 1 ? 'task' : 'tasks'} in DLQ</div>
+                </div>
+        `;
+        
+        if (stats.oldest_task_time) {
+            const oldestDate = new Date(stats.oldest_task_time);
+            const now = new Date();
+            const ageMs = now - oldestDate;
+            const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+            const ageHours = Math.floor((ageMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            
+            statsHtml += `
+                <div class="dlq-stat-card">
+                    <h3>Oldest Failed Task</h3>
+                    <p class="dlq-stat-number" style="font-size: 18px;">${ageDays}d ${ageHours}h</p>
+                    <div class="dlq-stat-time">${oldestDate.toLocaleString()}</div>
+                </div>
+            `;
+        }
+        
+        if (stats.newest_task_time) {
+            const newestDate = new Date(stats.newest_task_time);
+            const now = new Date();
+            const ageMs = now - newestDate;
+            const ageMinutes = Math.floor(ageMs / (1000 * 60));
+            const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
+            
+            let ageText;
+            if (ageMinutes < 60) {
+                ageText = `${ageMinutes}m ago`;
+            } else if (ageHours < 24) {
+                ageText = `${ageHours}h ago`;
+            } else {
+                ageText = `${Math.floor(ageHours / 24)}d ago`;
+            }
+            
+            statsHtml += `
+                <div class="dlq-stat-card">
+                    <h3>Newest Failed Task</h3>
+                    <p class="dlq-stat-number" style="font-size: 18px;">${ageText}</p>
+                    <div class="dlq-stat-time">${newestDate.toLocaleString()}</div>
+                </div>
+            `;
+        }
+        
+        statsHtml += `</div>`;
+        
+        document.getElementById('dlqStats').innerHTML = statsHtml;
     } catch (err) {
         console.error('Error loading DLQ stats:', err);
+        document.getElementById('dlqStats').innerHTML = `
+            <div class="dlq-empty-state">
+                <div class="dlq-empty-state-icon">⚠️</div>
+                <h3>Error loading statistics</h3>
+                <p>${err.message || 'Failed to load DLQ statistics'}</p>
+            </div>
+        `;
     }
 }
 
