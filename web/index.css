@@ -899,7 +899,6 @@ th.sortable:hover {
     box-shadow: 0 8px 20px rgba(250, 204, 21, 0.4);
 }
 
-/* DLQ Specific Styles */
 .dlq-header {
     display: flex;
     justify-content: space-between;
