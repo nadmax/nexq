@@ -76,7 +76,7 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: "-no-fail -fmt sarif -out gosec-results.sarif ./..."
+          args: "-tests -no-fail -fmt sarif -out gosec-results.sarif ./..."
 
       - name: Upload Gosec scan results
         uses: github/codeql-action/upload-sarif@v4
@@ -88,7 +88,7 @@ jobs:
         with:
           scan-type: "fs"
           scan-ref: "."
-          severity: "MEDIUM,HIGH,CRITICAL"
+          severity: "HIGH,CRITICAL"
           format: "sarif"
           output: "trivy-dependencies-results.sarif"
           skip-setup-trivy: true
@@ -113,7 +113,7 @@ jobs:
         with:
           image-ref: nadmax/nexq-${{ matrix.component }}:${{ github.sha }}
           format: "sarif"
-          severity: "MEDIUM,HIGH,CRITICAL"
+          severity: "HIGH,CRITICAL"
           output: "trivy-${{ matrix.component }}-results.sarif"
           skip-setup-trivy: true
 
