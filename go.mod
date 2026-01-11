@@ -1,6 +1,6 @@
 module github.com/nadmax/nexq
 
-go 1.25.3
+go 1.25.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
