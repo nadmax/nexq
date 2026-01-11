@@ -20,6 +20,8 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+var recordHTTPRequest = metrics.RecordHTTPRequest
+
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -34,7 +36,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		endpoint := normalizeEndpoint(r.URL.Path)
 		status := strconv.Itoa(wrapped.statusCode)
 
-		metrics.RecordHTTPRequest(r.Method, endpoint, status, duration)
+		recordHTTPRequest(r.Method, endpoint, status, duration)
 	})
 }
 
