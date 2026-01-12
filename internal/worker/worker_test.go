@@ -7,7 +7,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/nadmax/nexq/internal/queue"
-	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/repository/mocks"
 	"github.com/nadmax/nexq/internal/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,11 +25,11 @@ func setupTestWorker(t *testing.T) (*Worker, *queue.Queue, *miniredis.Miniredis)
 	return w, q, mr
 }
 
-func setupTestWorkerWithMockRepo(t *testing.T) (*Worker, *queue.Queue, *repository.MockPostgresRepository, *miniredis.Miniredis) {
+func setupTestWorkerWithMockRepo(t *testing.T) (*Worker, *queue.Queue, *mocks.MockPostgresRepository, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
-	mockRepo := repository.NewMockPostgresRepository()
+	mockRepo := mocks.NewMockPostgresRepository()
 	q, err := queue.NewQueue(mr.Addr(), mockRepo)
 	require.NoError(t, err)
 

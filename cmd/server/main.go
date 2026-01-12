@@ -12,7 +12,7 @@ import (
 	"github.com/nadmax/nexq/internal/api"
 	"github.com/nadmax/nexq/internal/middleware"
 	"github.com/nadmax/nexq/internal/queue"
-	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/repository/postgres"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 		log.Fatal("POSTGRES_DSN is required")
 	}
 
-	repo, err := repository.NewPostgresTaskRepository(postgresDSN)
+	repo, err := postgres.NewPostgresTaskRepository(postgresDSN)
 	if err != nil {
 		log.Fatal(err)
 	}

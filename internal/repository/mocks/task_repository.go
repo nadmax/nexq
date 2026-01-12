@@ -1,10 +1,12 @@
-package repository
+// Package mocks provides mock implementations of repository interfaces for use in tests.
+package mocks
 
 import (
 	"context"
 	"fmt"
 	"sync"
 
+	"github.com/nadmax/nexq/internal/repository/models"
 	"github.com/nadmax/nexq/internal/task"
 )
 
@@ -20,8 +22,8 @@ type MockPostgresRepository struct {
 	LogExecutionCalls     []LogExecutionCall
 	Tasks                 map[string]*task.Task
 	ExecutionLog          []LogExecutionCall
-	TaskStats             []TaskStats
-	RecentTasks           []RecentTask
+	TaskStats             []models.TaskStats
+	RecentTasks           []models.RecentTask
 	GetTaskError          error
 	SaveTaskError         error
 	CompleteTaskError     error
@@ -74,8 +76,8 @@ func NewMockPostgresRepository() *MockPostgresRepository {
 	return &MockPostgresRepository{
 		Tasks:        make(map[string]*task.Task),
 		ExecutionLog: make([]LogExecutionCall, 0),
-		TaskStats:    make([]TaskStats, 0),
-		RecentTasks:  make([]RecentTask, 0),
+		TaskStats:    make([]models.TaskStats, 0),
+		RecentTasks:  make([]models.RecentTask, 0),
 	}
 }
 
@@ -233,7 +235,7 @@ func (m *MockPostgresRepository) LogExecution(ctx context.Context, taskID string
 	return nil
 }
 
-func (m *MockPostgresRepository) GetTaskStats(ctx context.Context, hours int) ([]TaskStats, error) {
+func (m *MockPostgresRepository) GetTaskStats(ctx context.Context, hours int) ([]models.TaskStats, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -244,7 +246,7 @@ func (m *MockPostgresRepository) GetTaskStats(ctx context.Context, hours int) ([
 	return m.TaskStats, nil
 }
 
-func (m *MockPostgresRepository) GetRecentTasks(ctx context.Context, limit int) ([]RecentTask, error) {
+func (m *MockPostgresRepository) GetRecentTasks(ctx context.Context, limit int) ([]models.RecentTask, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -259,7 +261,7 @@ func (m *MockPostgresRepository) GetRecentTasks(ctx context.Context, limit int) 
 	return m.RecentTasks, nil
 }
 
-func (m *MockPostgresRepository) GetTasksByType(ctx context.Context, taskType string, limit int) ([]RecentTask, error) {
+func (m *MockPostgresRepository) GetTasksByType(ctx context.Context, taskType string, limit int) ([]models.RecentTask, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -267,7 +269,7 @@ func (m *MockPostgresRepository) GetTasksByType(ctx context.Context, taskType st
 		return nil, m.GetTasksByTypeError
 	}
 
-	var filtered []RecentTask
+	var filtered []models.RecentTask
 	for _, task := range m.RecentTasks {
 		if task.Type == taskType {
 			filtered = append(filtered, task)

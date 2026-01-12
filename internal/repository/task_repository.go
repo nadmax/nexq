@@ -1,8 +1,10 @@
+// Package repository defines the persistence interfaces for task storage.
 package repository
 
 import (
 	"context"
 
+	"github.com/nadmax/nexq/internal/repository/models"
 	"github.com/nadmax/nexq/internal/task"
 )
 
@@ -15,9 +17,9 @@ type TaskRepository interface {
 	MoveTaskToDLQ(ctx context.Context, taskID string, reason string) error
 	IncrementRetryCount(ctx context.Context, taskID string) error
 	LogExecution(ctx context.Context, taskID string, attemptNumber int, status string, durationMs int, msgErr string, workerID string) error
-	GetTaskStats(ctx context.Context, hours int) ([]TaskStats, error)
-	GetRecentTasks(ctx context.Context, limit int) ([]RecentTask, error)
-	GetTasksByType(ctx context.Context, taskType string, limit int) ([]RecentTask, error)
+	GetTaskStats(ctx context.Context, hours int) ([]models.TaskStats, error)
+	GetRecentTasks(ctx context.Context, limit int) ([]models.RecentTask, error)
+	GetTasksByType(ctx context.Context, taskType string, limit int) ([]models.RecentTask, error)
 	GetTaskHistory(ctx context.Context, taskID string) ([]map[string]any, error)
 	Close() error
 }

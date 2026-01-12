@@ -1,5 +1,5 @@
-// Package repository provides PostgreSQL persistence for task history.
-package repository
+// Package postgres provides PostgreSQL-backed implementations of repository interfaces.
+package postgres
 
 import (
 	"context"
@@ -10,32 +10,12 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/nadmax/nexq/internal/repository/models"
 	"github.com/nadmax/nexq/internal/task"
 )
 
 type PostgresTaskRepository struct {
 	db *sql.DB
-}
-
-type TaskStats struct {
-	Type          string  `json:"type"`
-	Status        string  `json:"status"`
-	Count         int     `json:"count"`
-	AvgDurationMs float64 `json:"avg_duration_ms"`
-	MaxDurationMs int     `json:"max_duration_ms"`
-	MinDurationMs int     `json:"min_duration_ms"`
-	AvgRetries    float64 `json:"avg_retries"`
-}
-
-type RecentTask struct {
-	TaskID        string     `json:"task_id"`
-	Type          string     `json:"type"`
-	Status        string     `json:"status"`
-	CreatedAt     time.Time  `json:"created_at"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
-	DurationMs    *int       `json:"duration_ms,omitempty"`
-	RetryCount    int        `json:"retry_count"`
-	FailureReason string     `json:"failure_reason,omitempty"`
 }
 
 func NewPostgresTaskRepository(connectionString string) (*PostgresTaskRepository, error) {
@@ -259,7 +239,7 @@ func (r *PostgresTaskRepository) LogExecution(ctx context.Context, taskID string
 	return err
 }
 
-func (r *PostgresTaskRepository) GetTaskStats(ctx context.Context, hours int) ([]TaskStats, error) {
+func (r *PostgresTaskRepository) GetTaskStats(ctx context.Context, hours int) ([]models.TaskStats, error) {
 	query := `
 		SELECT 
 			type, status, COUNT(*) as count,
@@ -283,9 +263,9 @@ func (r *PostgresTaskRepository) GetTaskStats(ctx context.Context, hours int) ([
 		}
 	}()
 
-	var stats []TaskStats
+	var stats []models.TaskStats
 	for rows.Next() {
-		var s TaskStats
+		var s models.TaskStats
 		if err := rows.Scan(
 			&s.Type,
 			&s.Status,
@@ -304,7 +284,7 @@ func (r *PostgresTaskRepository) GetTaskStats(ctx context.Context, hours int) ([
 	return stats, rows.Err()
 }
 
-func (r *PostgresTaskRepository) GetRecentTasks(ctx context.Context, limit int) ([]RecentTask, error) {
+func (r *PostgresTaskRepository) GetRecentTasks(ctx context.Context, limit int) ([]models.RecentTask, error) {
 	query := `
 		SELECT 
 			task_id, type, status, created_at, completed_at,
@@ -324,9 +304,9 @@ func (r *PostgresTaskRepository) GetRecentTasks(ctx context.Context, limit int) 
 		}
 	}()
 
-	var tasks []RecentTask
+	var tasks []models.RecentTask
 	for rows.Next() {
-		var t RecentTask
+		var t models.RecentTask
 		if err := rows.Scan(
 			&t.TaskID,
 			&t.Type,
@@ -346,7 +326,7 @@ func (r *PostgresTaskRepository) GetRecentTasks(ctx context.Context, limit int) 
 	return tasks, rows.Err()
 }
 
-func (r *PostgresTaskRepository) GetTasksByType(ctx context.Context, taskType string, limit int) ([]RecentTask, error) {
+func (r *PostgresTaskRepository) GetTasksByType(ctx context.Context, taskType string, limit int) ([]models.RecentTask, error) {
 	query := `
 		SELECT 
 			task_id, type, status, created_at, completed_at,
@@ -367,9 +347,9 @@ func (r *PostgresTaskRepository) GetTasksByType(ctx context.Context, taskType st
 		}
 	}()
 
-	var tasks []RecentTask
+	var tasks []models.RecentTask
 	for rows.Next() {
-		var t RecentTask
+		var t models.RecentTask
 		if err := rows.Scan(
 			&t.TaskID,
 			&t.Type,
