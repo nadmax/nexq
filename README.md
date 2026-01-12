@@ -44,7 +44,6 @@ See [ARCHITECTURE.md](https://github.com/nadmax/nexq/blob/master/docs/ARCHITECTU
 
 ## Use Cases
 
-- Background email sending
 - Image/video processing pipelines
 - Report task performance generator
 - Data synchronization tasks

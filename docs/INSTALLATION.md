@@ -40,21 +40,6 @@ Open your browser and navigate to `http://localhost:8080` to access the dashboar
 
 ### Basic examples
 
-**Create a task via API:**
-
-```sh
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "send_email",
-    "payload": {
-      "to": "user@example.com",
-      "subject": "Hello from Nexq"
-    },
-    "priority": 5
-  }'
-```
-
 **Schedule a task for later:**
 
 ```sh
