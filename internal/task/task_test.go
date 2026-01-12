@@ -101,3 +101,119 @@ func TestTaskJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, task.RetryCount, restored.RetryCount)
 	assert.Equal(t, task.Error, restored.Error)
 }
+
+func TestTask_ShouldMoveToDeadLetter(t *testing.T) {
+	tests := []struct {
+		name       string
+		retryCount int
+		maxRetries int
+		status     TaskStatus
+		expected   bool
+	}{
+		{
+			name:       "should move when retries exceeded and failed",
+			retryCount: 3,
+			maxRetries: 3,
+			status:     FailedStatus,
+			expected:   true,
+		},
+		{
+			name:       "should move when retries exceeded beyond max and failed",
+			retryCount: 5,
+			maxRetries: 3,
+			status:     FailedStatus,
+			expected:   true,
+		},
+		{
+			name:       "should not move when retries not exceeded",
+			retryCount: 2,
+			maxRetries: 3,
+			status:     FailedStatus,
+			expected:   false,
+		},
+		{
+			name:       "should not move when status is not failed",
+			retryCount: 3,
+			maxRetries: 3,
+			status:     PendingStatus,
+			expected:   false,
+		},
+		{
+			name:       "should not move when status is running",
+			retryCount: 3,
+			maxRetries: 3,
+			status:     RunningStatus,
+			expected:   false,
+		},
+		{
+			name:       "should not move when status is completed",
+			retryCount: 3,
+			maxRetries: 3,
+			status:     CompletedStatus,
+			expected:   false,
+		},
+		{
+			name:       "should not move when retries below max even if failed",
+			retryCount: 0,
+			maxRetries: 3,
+			status:     FailedStatus,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := &Task{
+				RetryCount: tt.retryCount,
+				MaxRetries: tt.maxRetries,
+				Status:     tt.status,
+			}
+
+			result := task.ShouldMoveToDeadLetter()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTaskPriority_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		priority TaskPriority
+		expected string
+	}{
+		{
+			name:     "low priority",
+			priority: LowPriority,
+			expected: "low",
+		},
+		{
+			name:     "medium priority",
+			priority: MediumPriority,
+			expected: "medium",
+		},
+		{
+			name:     "high priority",
+			priority: HighPriority,
+			expected: "high",
+		},
+		{
+			name:     "unknown priority value",
+			priority: TaskPriority(99),
+			expected: "unknown",
+		},
+		{
+			name:     "negative priority value",
+			priority: TaskPriority(-1),
+			expected: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.priority.String()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
