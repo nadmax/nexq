@@ -11,7 +11,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/nadmax/nexq/internal/queue"
-	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/repository/mocks"
+	"github.com/nadmax/nexq/internal/repository/models"
 	"github.com/nadmax/nexq/internal/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,11 +30,11 @@ func setupTestAPI(t *testing.T) (*API, *queue.Queue, *miniredis.Miniredis) {
 	return api, q, mr
 }
 
-func setupTestAPIWithMockRepo(t *testing.T) (*API, *queue.Queue, *repository.MockPostgresRepository, *miniredis.Miniredis) {
+func setupTestAPIWithMockRepo(t *testing.T) (*API, *queue.Queue, *mocks.MockPostgresRepository, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
-	mockRepo := repository.NewMockPostgresRepository()
+	mockRepo := mocks.NewMockPostgresRepository()
 	q, err := queue.NewQueue(mr.Addr(), mockRepo)
 	require.NoError(t, err)
 
@@ -639,7 +640,7 @@ func TestHistoryStatsWithMockRepo(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.TaskStats = []repository.TaskStats{
+	mockRepo.TaskStats = []models.TaskStats{
 		{
 			Type:          "send_email",
 			Status:        "completed",
@@ -658,7 +659,7 @@ func TestHistoryStatsWithMockRepo(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var stats []repository.TaskStats
+	var stats []models.TaskStats
 	err := json.NewDecoder(w.Body).Decode(&stats)
 	require.NoError(t, err)
 	assert.Len(t, stats, 1)
@@ -686,7 +687,7 @@ func TestHandleRecentHistory_Success(t *testing.T) {
 
 	duration1 := 250
 	duration2 := 150
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:     "task-1",
 			Type:       "send_email",
@@ -710,7 +711,7 @@ func TestHandleRecentHistory_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var tasks []repository.RecentTask
+	var tasks []models.RecentTask
 	err := json.NewDecoder(w.Body).Decode(&tasks)
 	require.NoError(t, err)
 	assert.Len(t, tasks, 2)
@@ -722,7 +723,7 @@ func TestHandleRecentHistory_WithLimit(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.RecentTasks = []repository.RecentTask{}
+	mockRepo.RecentTasks = []models.RecentTask{}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/history/recent?limit=50", nil)
@@ -730,7 +731,6 @@ func TestHandleRecentHistory_WithLimit(t *testing.T) {
 	api.handleRecentHistory(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	// The limit is passed to the repository method, which uses it internally
 }
 
 func TestHandleRecentHistory_InvalidLimit(t *testing.T) {
@@ -738,7 +738,7 @@ func TestHandleRecentHistory_InvalidLimit(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.RecentTasks = []repository.RecentTask{}
+	mockRepo.RecentTasks = []models.RecentTask{}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/history/recent?limit=invalid", nil)
@@ -805,7 +805,7 @@ func TestHandleTaskHistory_Success(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	taskID := "task-123"
-	mockRepo.ExecutionLog = []repository.LogExecutionCall{
+	mockRepo.ExecutionLog = []mocks.LogExecutionCall{
 		{
 			TaskID:        taskID,
 			AttemptNumber: 1,
@@ -910,7 +910,7 @@ func TestHandleTasksByType_Success(t *testing.T) {
 	taskType := "send_email"
 	duration1 := 200
 	duration2 := 300
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:     "task-1",
 			Type:       taskType,
@@ -934,7 +934,7 @@ func TestHandleTasksByType_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var tasks []repository.RecentTask
+	var tasks []models.RecentTask
 	err := json.NewDecoder(w.Body).Decode(&tasks)
 	require.NoError(t, err)
 	assert.Len(t, tasks, 2)
@@ -946,7 +946,7 @@ func TestHandleTasksByType_WithLimit(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.RecentTasks = []repository.RecentTask{}
+	mockRepo.RecentTasks = []models.RecentTask{}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/history/type/send_email?limit=25", nil)

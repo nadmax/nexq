@@ -8,7 +8,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/nadmax/nexq/internal/queue"
-	"github.com/nadmax/nexq/internal/repository"
+	"github.com/nadmax/nexq/internal/repository/mocks"
+	"github.com/nadmax/nexq/internal/repository/models"
 	"github.com/nadmax/nexq/internal/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,11 +27,11 @@ func setupTestDashboard(t *testing.T) (*Dashboard, *queue.Queue, *miniredis.Mini
 	return dash, q, mr
 }
 
-func setupTestDashboardWithMockRepo(t *testing.T) (*Dashboard, *queue.Queue, *repository.MockPostgresRepository, *miniredis.Miniredis) {
+func setupTestDashboardWithMockRepo(t *testing.T) (*Dashboard, *queue.Queue, *mocks.MockPostgresRepository, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
-	mockRepo := repository.NewMockPostgresRepository()
+	mockRepo := mocks.NewMockPostgresRepository()
 	q, err := queue.NewQueue(mr.Addr(), mockRepo)
 	require.NoError(t, err)
 
@@ -491,7 +492,7 @@ func TestGetStatsWithRepository(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.TaskStats = []repository.TaskStats{
+	mockRepo.TaskStats = []models.TaskStats{
 		{
 			Type:          "send_email",
 			Status:        "completed",
@@ -539,7 +540,7 @@ func TestGetRecentTasksWithRepository(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	now := time.Now()
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:      "task-1",
 			Type:        "send_email",
@@ -612,7 +613,7 @@ func TestGetStatsWithCompletedTasks(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.TaskStats = []repository.TaskStats{
+	mockRepo.TaskStats = []models.TaskStats{
 		{
 			Type:          "send_email",
 			Status:        "completed",
@@ -639,7 +640,7 @@ func TestGetRecentTasksWithVariedStatuses(t *testing.T) {
 
 	now := time.Now()
 
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:      "completed-task",
 			Type:        "test_task",
@@ -685,8 +686,7 @@ func TestGetStatsPerformanceMetrics(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	// Setup performance data
-	mockRepo.TaskStats = []repository.TaskStats{
+	mockRepo.TaskStats = []models.TaskStats{
 		{
 			Type:          "fast_task",
 			Status:        "completed",
@@ -727,7 +727,7 @@ func TestGetRecentTasksOrdering(t *testing.T) {
 
 	now := time.Now()
 
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:    "newest",
 			Type:      "test",
@@ -761,7 +761,7 @@ func TestGetStatsWithRetryMetrics(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	mockRepo.TaskStats = []repository.TaskStats{
+	mockRepo.TaskStats = []models.TaskStats{
 		{
 			Type:          "reliable_task",
 			Status:        "completed",
@@ -793,7 +793,7 @@ func TestGetRecentTasksWithFailureReasons(t *testing.T) {
 
 	now := time.Now()
 
-	mockRepo.RecentTasks = []repository.RecentTask{
+	mockRepo.RecentTasks = []models.RecentTask{
 		{
 			TaskID:        "failed-1",
 			Type:          "test",
