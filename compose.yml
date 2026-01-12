@@ -2,7 +2,7 @@ services:
   pogocache:
     build:
       context: .
-      dockerfile: Dockerfile.pogocache
+      dockerfile: docker/pogocache.Dockerfile
     container_name: nexq-pogocache
     ports:
       - "9401:9401"
@@ -63,7 +63,7 @@ services:
   server:
     build:
       context: .
-      dockerfile: Dockerfile.server
+      dockerfile: docker/server.Dockerfile
     container_name: nexq-server
     ports:
       - "8080:8080"
@@ -80,7 +80,7 @@ services:
   worker1:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: docker/worker.Dockerfile
     container_name: nexq-worker-1
     environment:
       - POGOCACHE_ADDR=pogocache:9401

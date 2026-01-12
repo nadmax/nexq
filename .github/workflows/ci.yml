@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.${{ matrix.component }}
+          file: docker/${{ matrix.component }}.Dockerfile
           push: false
           tags: nadmax/nexq-${{ matrix.component }}:${{ github.sha }}
           outputs: type=docker,dest=/tmp/${{ matrix.component }}-image.tar
