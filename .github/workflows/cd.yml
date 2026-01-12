@@ -19,7 +19,9 @@ jobs:
           cache-dependency-path: "go.sum"
 
       - name: Run tests with coverage
-        run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+        run: |
+          PKGS=$(go list ./... | grep -v /mocks | grep -v /cmd/ | tr '\n' ',')
+          go test ./... -covermode=atomic -coverprofile=coverage.txt -coverpkg="$PKGS"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
