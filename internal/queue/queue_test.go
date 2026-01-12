@@ -444,3 +444,354 @@ func TestGetRepositoryWithNilRepo(t *testing.T) {
 	repo := q.GetRepository()
 	assert.Nil(t, repo)
 }
+
+func TestCancelTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.Status = task.PendingStatus
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.CancelTask(tsk.ID)
+	require.NoError(t, err)
+
+	retrieved, err := q.GetTask(tsk.ID)
+	require.NoError(t, err)
+	assert.Equal(t, task.CancelledStatus, retrieved.Status)
+	assert.NotNil(t, retrieved.CompletedAt)
+}
+
+func TestCancelTask_NotFound(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	err := q.CancelTask("non-existent-id")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "task not found")
+}
+
+func TestCancelTask_CompletedTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.Status = task.CompletedStatus
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.CancelTask(tsk.ID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot cancel task with status")
+}
+
+func TestCancelTask_RunningTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.Status = task.RunningStatus
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.CancelTask(tsk.ID)
+	require.NoError(t, err)
+
+	retrieved, err := q.GetTask(tsk.ID)
+	require.NoError(t, err)
+	assert.Equal(t, task.CancelledStatus, retrieved.Status)
+}
+
+func TestCancelTaskWithRepository(t *testing.T) {
+	q, mockRepo, mr := setupTestQueueWithMockRepo(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.Status = task.PendingStatus
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.CancelTask(tsk.ID)
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, mockRepo.GetUpdateTaskStatusCallCount(), 1)
+}
+
+func TestIsCancelled(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.Status = task.PendingStatus
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	cancelled, err := q.IsCancelled(tsk.ID)
+	require.NoError(t, err)
+	assert.False(t, cancelled)
+
+	err = q.CancelTask(tsk.ID)
+	require.NoError(t, err)
+
+	cancelled, err = q.IsCancelled(tsk.ID)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
+}
+
+func TestIsCancelled_NotFound(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	_, err := q.IsCancelled("non-existent-id")
+	assert.Error(t, err)
+}
+
+func TestGetDeadLetterTasks_Empty(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tasks, err := q.GetDeadLetterTasks()
+	require.NoError(t, err)
+	assert.Len(t, tasks, 0)
+}
+
+func TestGetDeadLetterTasks(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk1 := task.NewTask("task1", map[string]any{}, task.MediumPriority)
+	err := q.Enqueue(tsk1)
+	require.NoError(t, err)
+	err = q.MoveToDeadLetter(tsk1, "test reason 1")
+	require.NoError(t, err)
+
+	tsk2 := task.NewTask("task2", map[string]any{}, task.MediumPriority)
+	err = q.Enqueue(tsk2)
+	require.NoError(t, err)
+	err = q.MoveToDeadLetter(tsk2, "test reason 2")
+	require.NoError(t, err)
+
+	dlqTasks, err := q.GetDeadLetterTasks()
+	require.NoError(t, err)
+	assert.Len(t, dlqTasks, 2)
+}
+
+func TestGetDeadLetterTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{"key": "value"}, task.MediumPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	reason := "max retries exceeded"
+	err = q.MoveToDeadLetter(tsk, reason)
+	require.NoError(t, err)
+
+	retrieved, err := q.GetDeadLetterTask(tsk.ID)
+	require.NoError(t, err)
+	assert.Equal(t, tsk.ID, retrieved.ID)
+	assert.Equal(t, tsk.Type, retrieved.Type)
+}
+
+func TestGetDeadLetterTask_NotFound(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	_, err := q.GetDeadLetterTask("non-existent-id")
+	assert.Error(t, err)
+}
+
+func TestRetryDeadLetterTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	tsk.RetryCount = 3
+	tsk.FailureReason = "some error"
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.MoveToDeadLetter(tsk, "max retries")
+	require.NoError(t, err)
+
+	err = q.RetryDeadLetterTask(tsk.ID)
+	require.NoError(t, err)
+
+	_, err = q.GetDeadLetterTask(tsk.ID)
+	assert.Error(t, err)
+
+	retrieved, err := q.GetTask(tsk.ID)
+	require.NoError(t, err)
+	assert.Equal(t, task.PendingStatus, retrieved.Status)
+	assert.Equal(t, 0, retrieved.RetryCount)
+	assert.Equal(t, "", retrieved.FailureReason)
+}
+
+func TestRetryDeadLetterTask_NotFound(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	err := q.RetryDeadLetterTask("non-existent-id")
+	assert.Error(t, err)
+}
+
+func TestPurgeDeadLetterTask(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("test_task", map[string]any{}, task.MediumPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.MoveToDeadLetter(tsk, "test reason")
+	require.NoError(t, err)
+
+	// Verify task is in DLQ
+	_, err = q.GetDeadLetterTask(tsk.ID)
+	require.NoError(t, err)
+
+	err = q.PurgeDeadLetterTask(tsk.ID)
+	require.NoError(t, err)
+
+	_, err = q.GetDeadLetterTask(tsk.ID)
+	assert.Error(t, err)
+}
+
+func TestPurgeDeadLetterTask_NotFound(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	err := q.PurgeDeadLetterTask("non-existent-id")
+	assert.NoError(t, err)
+}
+
+func TestGetDeadLetterStats_Empty(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	stats, err := q.GetDeadLetterStats()
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats["total_tasks"])
+}
+
+func TestGetDeadLetterStats(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	for i := range 5 {
+		tsk := task.NewTask("test_task", map[string]any{"index": i}, task.MediumPriority)
+		err := q.Enqueue(tsk)
+		require.NoError(t, err)
+		err = q.MoveToDeadLetter(tsk, "test reason")
+		require.NoError(t, err)
+	}
+
+	stats, err := q.GetDeadLetterStats()
+	require.NoError(t, err)
+	assert.Equal(t, 5, stats["total_tasks"])
+}
+
+func TestUpdateMetrics(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	pendingTask := task.NewTask("pending_task", map[string]any{}, task.MediumPriority)
+	pendingTask.Status = task.PendingStatus
+	err := q.Enqueue(pendingTask)
+	require.NoError(t, err)
+
+	runningTask := task.NewTask("running_task", map[string]any{}, task.MediumPriority)
+	runningTask.Status = task.RunningStatus
+	err = q.Enqueue(runningTask)
+	require.NoError(t, err)
+
+	dlqTask := task.NewTask("dlq_task", map[string]any{}, task.MediumPriority)
+	err = q.Enqueue(dlqTask)
+	require.NoError(t, err)
+	err = q.MoveToDeadLetter(dlqTask, "test")
+	require.NoError(t, err)
+
+	err = q.UpdateMetrics()
+	assert.NoError(t, err)
+}
+
+func TestUpdateMetrics_EmptyQueue(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	err := q.UpdateMetrics()
+	assert.NoError(t, err)
+}
+
+func TestDeadLetterWorkflow(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("workflow_task", map[string]any{"data": "test"}, task.HighPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.MoveToDeadLetter(tsk, "max retries exceeded")
+	require.NoError(t, err)
+
+	dlqTasks, err := q.GetDeadLetterTasks()
+	require.NoError(t, err)
+	assert.Len(t, dlqTasks, 1)
+
+	stats, err := q.GetDeadLetterStats()
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats["total_tasks"])
+
+	err = q.RetryDeadLetterTask(tsk.ID)
+	require.NoError(t, err)
+
+	dlqTasks, err = q.GetDeadLetterTasks()
+	require.NoError(t, err)
+	assert.Len(t, dlqTasks, 0)
+
+	retrieved, err := q.GetTask(tsk.ID)
+	require.NoError(t, err)
+	assert.Equal(t, task.PendingStatus, retrieved.Status)
+}
+
+func TestCancelAndRetryWorkflow(t *testing.T) {
+	q, mr := setupTestQueue(t)
+	defer mr.Close()
+	defer func() { _ = q.Close() }()
+
+	tsk := task.NewTask("cancel_test", map[string]any{}, task.MediumPriority)
+	err := q.Enqueue(tsk)
+	require.NoError(t, err)
+
+	err = q.CancelTask(tsk.ID)
+	require.NoError(t, err)
+
+	cancelled, err := q.IsCancelled(tsk.ID)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
+
+	err = q.CancelTask(tsk.ID)
+	assert.Error(t, err)
+}
