@@ -32,7 +32,6 @@
                             <div class="form-group">
                                 <label>Task Type</label>
                                 <select id="taskType">
-                                    <option value="send_email">Send Email</option>
                                     <option value="generate_report">Generate Report</option>
                                     <option value="process_image">Process Image</option>
                                 </select>
@@ -213,11 +212,6 @@
                 <h3>Task Types</h3>
                 <div class="task-types-grid">
                     <div class="task-type-card">
-                        <h4>send_email</h4>
-                        <p>Send email notifications</p>
-                        <p><strong class="required-label">Required:</strong> <code>to</code>, <code>subject</code>, <code>body</code></p>
-                    </div>
-                    <div class="task-type-card">
                         <h4>process_image</h4>
                         <p>Process and transform images</p>
                         <p><strong class="required-label">Required:</strong> <code>image_url</code>, <code>operations</code></p>
@@ -233,13 +227,6 @@
 
             <div class="docs-section">
                 <h3>Examples</h3>
-                <div class="example-title">Send an email</div>
-                <p>Create a task that sends an email</p>
-                <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this, 0)">Copy</button>
-                    <div class="code-block-editor" id="example-0"></div>
-                </div>
-
                 <div class="example-title">Generate performance report for later</div>
                 <p>Create a task that generates a performance report with customizable date range, format, output path, and scheduling (in seconds):</p>
                 <div class="code-block">

@@ -58,7 +58,6 @@ func main() {
 	w := worker.NewWorker(workerID, q)
 	reportGen := handlers.NewReportGenerator(repo.DB())
 
-	w.RegisterHandler("send_email", handlers.SendEmailHandler)
 	w.RegisterHandler("process_image", processImageHandler)
 	w.RegisterHandler("generate_report", reportGen.GenerateReportHandler)
 

@@ -172,7 +172,6 @@ const toast = new ToastManager();
 const confirm = new ConfirmDialog();
 const API_URL = '/api';
 const codeExample = [
-    { to: "user@example.com", subject: "Hello from Nexq", body: "This is a custom email!" },
     { report_type: "task_summary", start_time: "2026-01-01T00:00:00Z", end_time: "2026-01-04T23:59:59Z", format: "csv", output_path: "./reports", schedule_in: 3600 },
     { image_url: "https://example.com/image.jpg", operations: ["resize", "compress"] }
 ];
@@ -183,9 +182,12 @@ require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-edi
 require(['vs/editor/editor.main'], function () {
     editor = monaco.editor.create(document.getElementById('editor'), {
         value: JSON.stringify({
-            to: "user@example.com",
-            subject: "Hello from Nexq",
-            body: "This is a custom email!"
+            report_type: "task_summary",
+            start_time: "2026-01-01T00:00:00Z",
+            end_time: "2026-01-04T23:59:59Z",
+            format: "csv",
+            output_path: "./reports",
+            schedule_in: 3600
         }, null, 2),
         language: 'json',
         theme: 'vs',
