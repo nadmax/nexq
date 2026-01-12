@@ -62,6 +62,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Go
+        if: matrix.component != 'pogocache'
         uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
@@ -74,16 +75,19 @@ jobs:
           version: v0.68.2
 
       - name: Run Gosec Security Scanner
+        if: matrix.component != 'pogocache'
         uses: securego/gosec@master
         with:
           args: "-tests -no-fail -fmt sarif -out gosec-results.sarif ./..."
 
       - name: Upload Gosec scan results
+        if: matrix.component != 'pogocache'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "gosec-results.sarif"
 
       - name: Scan code dependencies
+        if: matrix.component != 'pogocache'
         uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: "fs"
@@ -95,7 +99,7 @@ jobs:
 
       - name: Upload code dependencies scan results
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: matrix.component != 'pogocache' && always()
         with:
           sarif_file: "trivy-dependencies-results.sarif"
 
