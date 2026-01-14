@@ -287,7 +287,8 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
         });
 
         toast.success('Task created successfully');
-        loadTasks();
+        refreshCurrentTab();
+        setTimeout(refreshCurrentTab, 300);
     } catch (err) {
         toast.error('Error creating task: ' + err.message);
     }
@@ -440,7 +441,7 @@ async function loadDLQTasks() {
             const hasPayload = task.payload && Object.keys(task.payload).length > 0;
             const escapedFailureReason = failureReason ? escapeHtml(failureReason) : '';
             const escapedPayloadJson = hasPayload ? escapeHtml(payloadJson) : '';
-            
+
             return `
                 <div class="dlq-task" data-task-id="${taskId}" data-safe-id="${safeId}">
                     <div class="dlq-task-header">
@@ -516,9 +517,9 @@ async function loadDLQTasks() {
 function toggleFailureReason(safeId) {
     const content = document.getElementById(`failure-${safeId}`);
     const toggle = document.getElementById(`toggle-${safeId}`);
-    
+
     if (!content || !toggle) return;
-    
+
     if (content.classList.contains('expanded')) {
         content.classList.remove('expanded');
         toggle.textContent = '▼';
@@ -533,9 +534,9 @@ function toggleFailureReason(safeId) {
 function togglePayload(safeId) {
     const content = document.getElementById(`payload-${safeId}`);
     const toggle = document.getElementById(`payload-toggle-${safeId}`);
-    
+
     if (!content || !toggle) return;
-    
+
     if (content.classList.contains('expanded')) {
         content.classList.remove('expanded');
         toggle.textContent = '▶';
@@ -557,7 +558,7 @@ async function loadDLQStats() {
 
         const stats = await response.json();
         const totalTasks = stats.total_tasks || 0;
-        
+
         let statsHtml = `
             <div class="dlq-stats-enhanced">
                 <div class="dlq-stat-card">
@@ -566,14 +567,14 @@ async function loadDLQStats() {
                     <div class="dlq-stat-time">${totalTasks === 1 ? 'task' : 'tasks'} in DLQ</div>
                 </div>
         `;
-        
+
         if (stats.oldest_task_time) {
             const oldestDate = new Date(stats.oldest_task_time);
             const now = new Date();
             const ageMs = now - oldestDate;
             const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
             const ageHours = Math.floor((ageMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            
+
             statsHtml += `
                 <div class="dlq-stat-card">
                     <h3>Oldest Failed Task</h3>
@@ -582,14 +583,14 @@ async function loadDLQStats() {
                 </div>
             `;
         }
-        
+
         if (stats.newest_task_time) {
             const newestDate = new Date(stats.newest_task_time);
             const now = new Date();
             const ageMs = now - newestDate;
             const ageMinutes = Math.floor(ageMs / (1000 * 60));
             const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
-            
+
             let ageText;
             if (ageMinutes < 60) {
                 ageText = `${ageMinutes}m ago`;
@@ -598,7 +599,7 @@ async function loadDLQStats() {
             } else {
                 ageText = `${Math.floor(ageHours / 24)}d ago`;
             }
-            
+
             statsHtml += `
                 <div class="dlq-stat-card">
                     <h3>Newest Failed Task</h3>
@@ -607,9 +608,9 @@ async function loadDLQStats() {
                 </div>
             `;
         }
-        
+
         statsHtml += `</div>`;
-        
+
         document.getElementById('dlqStats').innerHTML = statsHtml;
     } catch (err) {
         console.error('Error loading DLQ stats:', err);
@@ -885,21 +886,36 @@ async function purgeTask(taskId) {
     }
 }
 
-function refreshCurrentTab() {
-    const activeTab = document.querySelector('.tab-content.active');
-    if (!activeTab) return;
+let isRefreshing = false;
 
-    const tabId = activeTab.id;
+async function refreshCurrentTab() {
+    if (isRefreshing) return;
+    isRefreshing = true;
 
-    if (tabId === 'history-tab') {
-        loadHistoryStats();
-        loadRecentHistory();
-    } else if (tabId === 'main-tab') {
-        loadStats();
-        loadTasks();
-    } else if (tabId === 'dlq-tab') {
-        loadDLQStats();
-        loadDLQTasks();
+    try {
+        const activeTab = document.querySelector('.tab-content.active');
+        if (!activeTab) return;
+
+        const tabId = activeTab.id;
+
+        if (tabId === 'history-tab') {
+            await Promise.all([
+                loadHistoryStats(),
+                loadRecentHistory()
+            ]);
+        } else if (tabId === 'main-tab') {
+            await Promise.all([
+                loadStats(),
+                loadTasks()
+            ]);
+        } else if (tabId === 'dlq-tab') {
+            await Promise.all([
+                loadDLQStats(),
+                loadDLQTasks()
+            ]);
+        }
+    } finally {
+        isRefreshing = false;
     }
 }
 
