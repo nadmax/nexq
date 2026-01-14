@@ -2,6 +2,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"github.com/nadmax/nexq/internal/task"
 )
 
-type TaskHandler func(*task.Task) error
+type TaskHandler func(context.Context, *task.Task) error
 
 type Worker struct {
 	id           string
@@ -46,6 +47,7 @@ func (w *Worker) Start() {
 			log.Printf("Worker %s stopped", w.id)
 			return
 		default:
+			log.Printf("Worker %s attempting to dequeue", w.id)
 			task, err := w.queue.Dequeue()
 			if err != nil || task == nil {
 				time.Sleep(w.pollInterval)
@@ -53,12 +55,19 @@ func (w *Worker) Start() {
 			}
 
 			w.processTask(task)
+			log.Printf("Worker %s finished processing task", w.id)
 		}
 	}
 }
 
 func (w *Worker) processTask(t *task.Task) {
 	log.Printf("Worker %s processing task %s (type: %s)", w.id, t.ID, t.Type)
+
+	cancelled, err := w.queue.IsCancelled(t.ID)
+	if err == nil && cancelled {
+		log.Printf("Task %s was cancelled, skipping execution", t.ID)
+		return
+	}
 
 	startTime := time.Now()
 	t.Status = task.RunningStatus
@@ -84,7 +93,38 @@ func (w *Worker) processTask(t *task.Task) {
 		return
 	}
 
-	err := handler(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan bool)
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				cancelled, err := w.queue.IsCancelled(t.ID)
+				if err == nil && cancelled {
+					log.Printf("Task %s cancelled during execution", t.ID)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	err = handler(ctx, t)
+	close(done)
+
+	log.Printf("Handler returned for task %s, err=%v, ctx.Err()=%v", t.ID, err, ctx.Err())
+
+	if ctx.Err() == context.Canceled {
+		log.Printf("Task %s was cancelled during execution, returning early", t.ID)
+		return
+	}
+
 	completedAt := time.Now()
 	t.CompletedAt = &completedAt
 	durationMs := int(completedAt.Sub(startTime).Milliseconds())

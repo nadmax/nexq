@@ -79,54 +79,75 @@ func (q *Queue) Enqueue(t *task.Task) error {
 }
 
 func (q *Queue) Dequeue() (*task.Task, error) {
-	headStr, _ := q.client.Get(q.ctx, "queue:head").Result()
-	tailStr, _ := q.client.Get(q.ctx, "queue:tail").Result()
-	head := int64(0)
-	tail := int64(0)
-	if headStr != "" {
-		head, _ = strconv.ParseInt(headStr, 10, 64)
-	}
-	if tailStr != "" {
-		tail, _ = strconv.ParseInt(tailStr, 10, 64)
-	}
-	if head >= tail {
-		return nil, nil
-	}
-
-	newHead, err := q.client.Incr(q.ctx, "queue:head").Result()
-	if err != nil {
-		return nil, err
-	}
-
-	itemKey := fmt.Sprintf("queue:item:%d", newHead)
-	taskID, err := q.client.Get(q.ctx, itemKey).Result()
-	if err != nil {
-		return nil, nil
-	}
-
-	data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	t, err := task.TaskFromJSON(data)
-	if err != nil {
-		return nil, err
-	}
-
-	waitTime := time.Since(t.CreatedAt)
-	metrics.RecordTaskWaitTime(t.Type, t.Priority, waitTime)
-	if q.repo != nil {
-		t.Status = task.RunningStatus
-		if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.RunningStatus, ""); err != nil {
-			log.Printf("Warning: failed to update task status: %v", err)
+	for {
+		headStr, _ := q.client.Get(q.ctx, "queue:head").Result()
+		tailStr, _ := q.client.Get(q.ctx, "queue:tail").Result()
+		head := int64(0)
+		tail := int64(0)
+		if headStr != "" {
+			head, _ = strconv.ParseInt(headStr, 10, 64)
 		}
+		if tailStr != "" {
+			tail, _ = strconv.ParseInt(tailStr, 10, 64)
+		}
+
+		log.Printf("Dequeue: head=%d, tail=%d", head, tail)
+
+		if head >= tail {
+			return nil, nil
+		}
+
+		newHead, err := q.client.Incr(q.ctx, "queue:head").Result()
+		if err != nil {
+			return nil, err
+		}
+
+		log.Printf("Dequeue: newHead=%d", newHead)
+
+		itemKey := fmt.Sprintf("queue:item:%d", newHead)
+		taskID, err := q.client.Get(q.ctx, itemKey).Result()
+		if err != nil {
+			log.Printf("Dequeue: queue:item:%d not found, error: %v", newHead, err)
+			return nil, nil
+		}
+
+		log.Printf("Dequeue: found taskID=%s at position %d", taskID, newHead)
+
+		data, err := q.client.Get(q.ctx, "task:"+taskID).Result()
+		if err != nil {
+			log.Printf("Dequeue: task:%s not found, error: %v", taskID, err)
+			return nil, nil
+		}
+
+		t, err := task.TaskFromJSON(data)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Printf("Dequeue: task %s has status %s", t.ID, t.Status)
+
+		if t.Status == task.CancelledStatus {
+			log.Printf("Dequeue: skipping cancelled task %s", t.ID)
+			q.client.Del(q.ctx, itemKey)
+			q.client.Del(q.ctx, "task:"+taskID)
+			continue
+		}
+
+		waitTime := time.Since(t.CreatedAt)
+		metrics.RecordTaskWaitTime(t.Type, t.Priority, waitTime)
+		if q.repo != nil {
+			t.Status = task.RunningStatus
+			if err := q.repo.UpdateTaskStatus(q.ctx, t.ID, task.RunningStatus, ""); err != nil {
+				log.Printf("Warning: failed to update task status: %v", err)
+			}
+		}
+
+		q.client.Del(q.ctx, itemKey)
+		q.client.Del(q.ctx, "task:"+taskID)
+
+		log.Printf("Dequeue: returning task %s", t.ID)
+		return t, nil
 	}
-
-	q.client.Del(q.ctx, itemKey)
-	q.client.Del(q.ctx, "task:"+taskID)
-
-	return t, nil
 }
 
 func (q *Queue) CompleteTask(t *task.Task, durationMs int) error {

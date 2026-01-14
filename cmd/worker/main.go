@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/nadmax/nexq/internal/queue"
 	"github.com/nadmax/nexq/internal/repository/postgres"
-	"github.com/nadmax/nexq/internal/task"
 	"github.com/nadmax/nexq/internal/worker"
 	"github.com/nadmax/nexq/internal/worker/handlers"
 )
@@ -58,7 +56,6 @@ func main() {
 	w := worker.NewWorker(workerID, q)
 	reportGen := handlers.NewReportGenerator(repo.DB())
 
-	w.RegisterHandler("process_image", processImageHandler)
 	w.RegisterHandler("generate_report", reportGen.GenerateReportHandler)
 
 	var wg sync.WaitGroup
@@ -76,16 +73,4 @@ func main() {
 	wg.Wait()
 
 	log.Println("Worker stopped")
-}
-
-func processImageHandler(t *task.Task) error {
-	imageURL, ok := t.Payload["image_url"].(string)
-	if !ok {
-		return errors.New("missing 'image_url' field")
-	}
-
-	log.Printf("Processing image: %s", imageURL)
-	time.Sleep(5 * time.Second)
-	log.Printf("Image processed: %s", imageURL)
-	return nil
 }

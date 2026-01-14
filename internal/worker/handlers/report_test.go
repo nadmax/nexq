@@ -508,7 +508,7 @@ func TestGenerateReportHandler(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("successful task_summary report", func(t *testing.T) {
-		task := &task.Task{
+		tsk := &task.Task{
 			ID:   "test-task-1",
 			Type: "generate_report",
 			Payload: map[string]any{
@@ -527,25 +527,25 @@ func TestGenerateReportHandler(t *testing.T) {
 
 		mock.ExpectQuery(`SELECT\s+type,.*FROM task_history`).WillReturnRows(rows)
 
-		err := rg.GenerateReportHandler(task)
+		err := rg.GenerateReportHandler(context.Background(), tsk)
 		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("invalid payload", func(t *testing.T) {
-		task := &task.Task{
+		tsk := &task.Task{
 			ID:      "test-task-2",
 			Type:    "generate_report",
 			Payload: map[string]any{},
 		}
 
-		err := rg.GenerateReportHandler(task)
+		err := rg.GenerateReportHandler(context.Background(), tsk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid payload")
 	})
 
 	t.Run("unsupported report type", func(t *testing.T) {
-		task := &task.Task{
+		tsk := &task.Task{
 			ID:   "test-task-3",
 			Type: "generate_report",
 			Payload: map[string]any{
@@ -554,7 +554,7 @@ func TestGenerateReportHandler(t *testing.T) {
 			},
 		}
 
-		err := rg.GenerateReportHandler(task)
+		err := rg.GenerateReportHandler(context.Background(), tsk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported report type")
 	})
