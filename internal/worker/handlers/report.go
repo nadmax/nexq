@@ -35,7 +35,7 @@ func NewReportGenerator(db *sql.DB) *ReportGenerator {
 	return &ReportGenerator{db: db}
 }
 
-func (rg *ReportGenerator) GenerateReportHandler(t *task.Task) error {
+func (rg *ReportGenerator) GenerateReportHandler(ctx context.Context, t *task.Task) error {
 	payload, err := parsePayload(t.Payload)
 	if err != nil {
 		return fmt.Errorf("invalid payload: %w", err)
@@ -43,7 +43,13 @@ func (rg *ReportGenerator) GenerateReportHandler(t *task.Task) error {
 
 	if payload.ScheduleIn > 0 {
 		log.Printf("[Task %s] Delaying report generation by %d seconds", t.ID, payload.ScheduleIn)
-		time.Sleep(time.Duration(payload.ScheduleIn) * time.Second)
+
+		select {
+		case <-time.After(time.Duration(payload.ScheduleIn) * time.Second):
+		case <-ctx.Done():
+			log.Printf("[Task %s] Task cancelled during delay", t.ID)
+			return ctx.Err()
+		}
 	}
 
 	startTime, endTime, err := parseTimeRange(payload)
@@ -53,8 +59,6 @@ func (rg *ReportGenerator) GenerateReportHandler(t *task.Task) error {
 
 	log.Printf("[Task %s] Generating %s report (format: %s, period: %s to %s)",
 		t.ID, payload.ReportType, payload.Format, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
-
-	ctx := context.Background()
 
 	var data [][]string
 	switch payload.ReportType {
@@ -74,6 +78,11 @@ func (rg *ReportGenerator) GenerateReportHandler(t *task.Task) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
+	}
+
+	if ctx.Err() != nil {
+		log.Printf("[Task %s] Task cancelled after data generation", t.ID)
+		return ctx.Err()
 	}
 
 	outputFile, err := saveReport(payload, data)

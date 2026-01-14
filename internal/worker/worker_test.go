@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestRegisterHandler(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	handler := func(t *task.Task) error {
+	handler := func(ctx context.Context, tsk *task.Task) error {
 		return nil
 	}
 
@@ -70,7 +71,7 @@ func TestProcessTask_Success(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	executed := false
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		executed = true
 		return nil
 	})
@@ -93,7 +94,7 @@ func TestProcessTask_Failure(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		return errors.New("task failed")
 	})
 
@@ -113,7 +114,7 @@ func TestProcessTask_MaxRetriesExceeded(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		return errors.New("task failed")
 	})
 
@@ -154,7 +155,7 @@ func TestWorkerStartStop(t *testing.T) {
 	w.SetPollInterval(10 * time.Millisecond)
 
 	processed := make(chan bool, 1)
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		processed <- true
 		return nil
 	})
@@ -183,7 +184,7 @@ func TestWorkerProcessMultipleTasks(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	count := 0
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		count++
 		return nil
 	})
@@ -208,7 +209,7 @@ func TestWorkerProcessTaskSuccessWithHistory(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
@@ -240,7 +241,7 @@ func TestWorkerProcessTaskFailureWithRetry(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		return errors.New("task failed")
 	})
 
@@ -269,7 +270,7 @@ func TestWorkerProcessTaskFailurePermanent(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(task *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		return errors.New("permanent failure")
 	})
 
@@ -317,7 +318,7 @@ func TestWorkerMultipleTasks(t *testing.T) {
 	defer func() { _ = q.Close() }()
 
 	processedTasks := 0
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		processedTasks++
 		return nil
 	})
@@ -346,7 +347,7 @@ func TestWorkerExecutionDurationTracking(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		time.Sleep(100 * time.Millisecond)
 		return nil
 	})
@@ -372,7 +373,7 @@ func TestWorkerIDTracking(t *testing.T) {
 	defer mr.Close()
 	defer func() { _ = q.Close() }()
 
-	w.RegisterHandler("test_task", func(tsk *task.Task) error {
+	w.RegisterHandler("test_task", func(ctx context.Context, tsk *task.Task) error {
 		return nil
 	})
 
