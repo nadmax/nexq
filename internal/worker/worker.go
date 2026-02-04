@@ -41,23 +41,27 @@ func (w *Worker) SetPollInterval(d time.Duration) {
 func (w *Worker) Start() {
 	log.Printf("Worker %s started", w.id)
 
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-w.stop:
 			log.Printf("Worker %s stopped", w.id)
 			return
-		default:
-			log.Printf("Worker %s attempting to dequeue", w.id)
-			task, err := w.queue.Dequeue()
-			if err != nil || task == nil {
-				time.Sleep(w.pollInterval)
-				continue
-			}
-
-			w.processTask(task)
-			log.Printf("Worker %s finished processing task", w.id)
+		case <-ticker.C:
+			w.processNextTask()
 		}
 	}
+}
+
+func (w *Worker) processNextTask() {
+	task, err := w.queue.Dequeue()
+	if err != nil || task == nil {
+		return
+	}
+
+	w.processTask(task)
 }
 
 func (w *Worker) processTask(t *task.Task) {
@@ -93,30 +97,10 @@ func (w *Worker) processTask(t *task.Task) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	done := make(chan bool)
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				cancelled, err := w.queue.IsCancelled(t.ID)
-				if err == nil && cancelled {
-					log.Printf("Task %s cancelled during execution", t.ID)
-					cancel()
-					return
-				}
-			}
-		}
-	}()
-
 	err = handler(ctx, t)
-	close(done)
 
 	log.Printf("Handler returned for task %s, err=%v, ctx.Err()=%v", t.ID, err, ctx.Err())
 
