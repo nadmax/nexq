@@ -1,4 +1,4 @@
-![CI](https://github.com/nadmax/nexq/actions/workflows/ci.yml/badge.svg) [![codecov](https://codecov.io/gh/nadmax/nexq/graph/badge.svg)](https://codecov.io/gh/nadmax/nexq)
+![CI](https://github.com/nadmax/nexq/actions/workflows/ci.yml/badge.svg) ![CD](https://github.com/nadmax/nexq/actions/workflows/cd.yml/badge.svg) [![codecov](https://codecov.io/gh/nadmax/nexq/graph/badge.svg)](https://codecov.io/gh/nadmax/nexq)
 
 # Nexq
 
