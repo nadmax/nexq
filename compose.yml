@@ -76,12 +76,14 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - reports-data:/app/reports
 
-  worker1:
+  worker:
     build:
       context: .
       dockerfile: docker/worker.Dockerfile
-    container_name: nexq-worker-1
+    container_name: nexq-worker
     environment:
       - POGOCACHE_ADDR=pogocache:9401
       - POSTGRES_DSN=${POSTGRES_DSN}
@@ -92,8 +94,11 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - reports-data:/app/reports
 
 volumes:
   postgres-data:
   victoriametrics-data:
   grafana-data:
+  reports-data:

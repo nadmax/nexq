@@ -105,7 +105,28 @@ func (w *Worker) processTask(t *task.Task) {
 	log.Printf("Handler returned for task %s, err=%v, ctx.Err()=%v", t.ID, err, ctx.Err())
 
 	if ctx.Err() == context.Canceled {
-		log.Printf("Task %s was cancelled during execution, returning early", t.ID)
+		log.Printf("Task %s was cancelled during execution", t.ID)
+		completedAt := time.Now()
+		t.CompletedAt = &completedAt
+		t.Status = task.CancelledStatus // Assuming you have this status
+
+		durationMs := int(completedAt.Sub(startTime).Milliseconds())
+
+		if err := w.queue.UpdateTask(t); err != nil {
+			log.Printf("Failed to update cancelled task: %v", err)
+		}
+
+		if err := w.queue.LogExecution(
+			t.ID,
+			t.RetryCount+1,
+			string(task.CancelledStatus),
+			durationMs,
+			"Task cancelled during execution",
+			w.id,
+		); err != nil {
+			log.Printf("Warning: failed to log cancelled execution: %v", err)
+		}
+
 		return
 	}
 

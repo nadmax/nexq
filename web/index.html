@@ -14,6 +14,7 @@
             <button class="tab active" onclick="switchTab('main', this)">Tasks</button>
             <button class="tab" onclick="switchTab('dlq', this)">Dead Letter Queue</button>
             <button class="tab" onclick="switchTab('history', this)">History</button>
+            <button class="tab" onclick="switchTab('reports', this)">Reports</button>
             <button class="tab" onclick="switchTab('docs', this)">Docs</button>
         </div>
 
@@ -101,6 +102,13 @@
                     <h2 style="margin: 0;">Failed Tasks</h2>
                 </div>
                 <div id="dlqList"></div>
+            </div>
+        </div>
+
+        <div id="reports-tab" class="tab-content">
+            <div class="tasks">
+                <h2>Generated Reports</h2>
+                <div id="reportsList"></div>
             </div>
         </div>
 

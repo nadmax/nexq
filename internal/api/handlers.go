@@ -3,9 +3,12 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +61,9 @@ func (a *API) setupRoutes() {
 	a.mux.HandleFunc("/api/history/recent", a.handleRecentHistory)
 	a.mux.HandleFunc("/api/history/task/", a.handleTaskHistory)
 	a.mux.HandleFunc("/api/history/type/", a.handleTasksByType)
+
+	a.mux.HandleFunc("/api/reports", a.listReportsHandler)
+	a.mux.HandleFunc("/api/reports/download/", a.downloadReportHandler)
 
 	a.mux.Handle("/metrics", promhttp.Handler())
 
@@ -446,4 +452,89 @@ func (a *API) handleTasksByType(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (a *API) listReportsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	reportsDir := "./reports"
+	files, err := os.ReadDir(reportsDir)
+	if err != nil {
+		if jErr := json.NewEncoder(w).Encode([]map[string]any{}); jErr != nil {
+			httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
+
+		return
+	}
+
+	var reports []map[string]any
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		info, err := file.Info()
+		if err != nil {
+			continue
+		}
+
+		reports = append(reports, map[string]any{
+			"filename":   file.Name(),
+			"size":       info.Size(),
+			"created_at": info.ModTime(),
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(reports); err != nil {
+		httputil.WriteJSONError(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *API) downloadReportHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httputil.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	filename := strings.TrimPrefix(r.URL.Path, "/api/reports/download/")
+	if filename == "" {
+		httputil.WriteJSONError(w, "Filename required", http.StatusBadRequest)
+		return
+	}
+
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+		httputil.WriteJSONError(w, "Invalid filename", http.StatusBadRequest)
+		return
+	}
+
+	reportsDir := "./reports"
+	filePath := filepath.Join(reportsDir, filename)
+	info, err := os.Stat(filePath)
+	if err != nil {
+		httputil.WriteJSONError(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if info.IsDir() {
+		httputil.WriteJSONError(w, "Invalid file", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+
+	if strings.HasSuffix(filename, ".csv") {
+		w.Header().Set("Content-Type", "text/csv")
+	} else if strings.HasSuffix(filename, ".json") {
+		w.Header().Set("Content-Type", "application/json")
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+
+	http.ServeFile(w, r, filePath)
 }

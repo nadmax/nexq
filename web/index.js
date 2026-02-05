@@ -239,6 +239,8 @@ function switchTab(tabName, element) {
     } else if (tabName == 'history') {
         loadRecentHistory();
         loadHistoryStats();
+    } else if (tabName == 'reports') {
+        loadReports();
     } else {
         loadStats();
         loadTasks();
@@ -815,6 +817,65 @@ async function viewTaskHistory(taskId) {
         console.error('Error loading task history:', err);
         toast.error('Failed to load execution history');
     }
+}
+
+async function loadReports() {
+    try {
+        const response = await fetch(`${API_URL}/reports`);
+        if (!response.ok) {
+            throw new Error('Failed to load reports');
+        }
+
+        const reports = await response.json();
+        const reportsList = document.getElementById('reportsList');
+
+        if (!reports || reports.length === 0) {
+            reportsList.innerHTML = '<div class="empty-state">No reports generated yet</div>';
+            return;
+        }
+
+        reportsList.innerHTML = reports
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .map(report => {
+                const size = formatFileSize(report.size);
+                const created = new Date(report.created_at).toLocaleString();
+
+                return `
+                    <div class="task">
+                        <div class="task-info">
+                            <strong>${report.filename}</strong>
+                        </div>
+                        <div>
+                            <small>Created: ${created}</small>
+                            <br>
+                            <small>Size: ${size}</small>
+                        </div>
+                        <div>
+                            <button onclick="downloadReport('${report.filename}')">
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+    } catch (err) {
+        console.error('Error loading reports:', err);
+        document.getElementById('reportsList').innerHTML =
+            '<div class="empty-state">Error loading reports</div>';
+    }
+}
+
+function downloadReport(filename) {
+    window.location.href = `${API_URL}/reports/download/${filename}`;
+    toast.success(`Downloading ${filename}`);
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 function closeExecutionModal() {
