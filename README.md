@@ -30,8 +30,8 @@ Nexq uses Pogocache instead of traditional caching solutions because:
 
 ### Prerequisites
 
-- Go 1.25.3 or higher
-- Docker (recommended)
+- Go 1.25.7 or higher if available
+- Docker
 - Pogocache server running locally or remotely
 
 ### Installation
@@ -44,12 +44,12 @@ See [ARCHITECTURE.md](https://github.com/nadmax/nexq/blob/master/docs/ARCHITECTU
 
 ## Use Cases
 
-- Image/video processing pipelines
-- Report task performance generator
-- Data synchronization tasks
-- Scheduled maintenance jobs
-- Webhook delivery with retries
-- Batch processing operations
+- [x] Report task performance generator
+- [ ] Image/video processing pipelines
+- [ ] Data synchronization tasks
+- [ ] Scheduled maintenance jobs
+- [ ] Webhook delivery with retries
+- [ ] Batch processing operations
 
 ## Configuration
 
@@ -82,7 +82,7 @@ Feel free to use this project however you'd like!
 
 ## Resources
 
-- [Go 1.25.5](https://golang.org/)
+- [Go 1.25.7](https://golang.org/)
 - [Pogocache](https://github.com/pogocache/pogocache) - Fast caching with focus on low latency and CPU efficiency
 - [go-redis](https://github.com/redis/go-redis) - Redis/Pogocache client for Go
 - [sendgrid-go](https://github.com/sendgrid/sendgrid-go) - SendGrid Golang API Library
