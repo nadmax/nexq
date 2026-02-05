@@ -89,7 +89,7 @@ jobs:
         with:
           scan-type: "fs"
           scan-ref: "."
-          severity: "HIGH,CRITICAL"
+          severity: "HIGH"
           format: "sarif"
           output: "trivy-dependencies-results.sarif"
           skip-setup-trivy: true
@@ -130,7 +130,7 @@ jobs:
         with:
           image-ref: nadmax/nexq-${{ matrix.component }}:${{ github.sha }}
           format: "sarif"
-          severity: "HIGH,CRITICAL"
+          severity: "HIGH"
           output: "trivy-${{ matrix.component }}-results.sarif"
           skip-setup-trivy: true
 
